@@ -1,0 +1,196 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground: #e5e5e5;
+  --background: #0a0a0f;
+
+  /* Knowledge depth colors */
+  --known-bg: #0a1628;
+  --known-accent: #3b82f6;
+
+  --investigated-bg: #0f1a2e;
+  --investigated-accent: #60a5fa;
+
+  --debated-bg: #1a1a2e;
+  --debated-accent: #f59e0b;
+
+  --unknown-bg: #0d0d1a;
+  --unknown-accent: #ec4899;
+
+  --frontier-bg: #050510;
+  --frontier-glow: #f472b6;
+  --frontier-accent: #f472b6;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  min-height: 100vh;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #12121a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a3a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a4a;
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Frontier text gradient */
+.frontier-text {
+  background: linear-gradient(135deg, #f472b6 0%, #ec4899 50%, #db2777 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Knowledge edge gradient */
+.knowledge-gradient {
+  background: linear-gradient(90deg, #22c55e 0%, #f59e0b 50%, #ec4899 100%);
+}
+
+/* Depth background transitions */
+.depth-transition {
+  transition: background-color 500ms ease-out, box-shadow 500ms ease-out;
+}
+
+/* Glow effects */
+.glow-accent {
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+}
+
+.glow-accent:hover {
+  box-shadow: 0 0 30px rgba(168, 85, 247, 0.5);
+}
+
+.glow-frontier {
+  box-shadow: 0 0 30px rgba(244, 114, 182, 0.4);
+}
+
+.glow-frontier-intense {
+  box-shadow: 0 0 60px rgba(244, 114, 182, 0.6), 0 0 120px rgba(236, 72, 153, 0.3);
+}
+
+/* Upload zone styling */
+.upload-zone {
+  border: 2px dashed #2a2a3a;
+  transition: all 0.3s ease;
+}
+
+.upload-zone:hover,
+.upload-zone.dragging {
+  border-color: #7c3aed;
+  background: rgba(124, 58, 237, 0.05);
+}
+
+/* Fade in animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+/* Horizon glow animation */
+@keyframes horizonPulse {
+  0%, 100% {
+    opacity: 0.7;
+    filter: blur(8px);
+  }
+  50% {
+    opacity: 1;
+    filter: blur(12px);
+  }
+}
+
+.horizon-glow {
+  animation: horizonPulse 3s ease-in-out infinite;
+}
+
+/* Star twinkle animation */
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* Particle float animation */
+@keyframes particleFloat {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+  }
+  25% {
+    transform: translateY(-10px) translateX(5px);
+  }
+  50% {
+    transform: translateY(-5px) translateX(-5px);
+  }
+  75% {
+    transform: translateY(-15px) translateX(3px);
+  }
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.8) 0%, rgba(244, 114, 182, 0) 70%);
+  pointer-events: none;
+}
+
+.particle-twinkle {
+  animation: twinkle var(--twinkle-duration, 3s) ease-in-out infinite;
+  animation-delay: var(--twinkle-delay, 0s);
+}
+
+.particle-float {
+  animation: particleFloat var(--float-duration, 8s) ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+}
+
+/* Frontier moment styles */
+.frontier-symbol {
+  text-shadow: 0 0 20px rgba(244, 114, 182, 0.8), 0 0 40px rgba(244, 114, 182, 0.4);
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
