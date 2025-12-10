@@ -77,38 +77,40 @@ export default function EntryPoint() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-br from-surface to-deep border border-border rounded-2xl p-6 flex gap-6"
+        className="bg-gradient-to-br from-surface to-deep border border-border rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6"
       >
         {/* Image thumbnail */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 flex justify-center sm:justify-start">
           <img
             src={`data:image/jpeg;base64,${originalImage}`}
             alt="Observation"
-            className="w-32 h-32 object-cover rounded-xl border border-border"
+            className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-xl border border-border"
           />
         </div>
 
         {/* Identification */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-4 mb-3">
-            <h1 className="text-2xl font-bold text-white truncate">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-3">
+            <h1 className="text-xl sm:text-2xl font-bold text-white line-clamp-2 sm:truncate">
               {initialAnalysis.identification.name}
             </h1>
-            <ConfidenceMeter confidence={initialAnalysis.identification.confidence} />
+            <div className="flex-shrink-0">
+              <ConfidenceMeter confidence={initialAnalysis.identification.confidence} />
+            </div>
           </div>
 
-          <p className="text-gray-300 mb-4">
+          <p className="text-gray-300 mb-4 text-sm sm:text-base">
             {initialAnalysis.identification.oneLiner}
           </p>
 
-          {/* Research stats */}
-          <div className="flex items-center gap-4 text-sm">
+          {/* Research stats - wrap on mobile */}
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm">
             <div className="flex items-center gap-2 text-muted">
               <FileText className="w-4 h-4" />
               <span>{initialAnalysis.paperCount} papers</span>
             </div>
             <div className="text-muted">
-              Last studied: {initialAnalysis.lastStudied}
+              Last: {initialAnalysis.lastStudied}
             </div>
             <ResearchHeat heat={initialAnalysis.researchActivity} />
           </div>
@@ -116,7 +118,7 @@ export default function EntryPoint() {
       </motion.div>
 
       {/* Three Doors */}
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {initialAnalysis.doors.map((door, index) => {
           const Icon = doorIcons[door.id]
           return (

@@ -200,20 +200,24 @@ export default function Home() {
           className="mt-16 text-center"
         >
           <h2 className="text-lg font-semibold text-white mb-6">How It Works</h2>
-          <div className="flex items-center justify-center gap-4 text-sm text-muted">
-            <span className="px-3 py-1 rounded-full bg-surface border border-border">
+          {/* Mobile: vertical stack, Desktop: horizontal */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 text-sm text-muted">
+            <span className="px-3 py-1.5 rounded-full bg-surface border border-border w-full sm:w-auto">
               1. Upload
             </span>
-            <span className="text-accent">→</span>
-            <span className="px-3 py-1 rounded-full bg-surface border border-border">
+            <span className="text-accent hidden sm:block">→</span>
+            <span className="text-accent sm:hidden">↓</span>
+            <span className="px-3 py-1.5 rounded-full bg-surface border border-border w-full sm:w-auto">
               2. Choose a path
             </span>
-            <span className="text-accent">→</span>
-            <span className="px-3 py-1 rounded-full bg-surface border border-border">
+            <span className="text-accent hidden sm:block">→</span>
+            <span className="text-accent sm:hidden">↓</span>
+            <span className="px-3 py-1.5 rounded-full bg-surface border border-border w-full sm:w-auto">
               3. Go deeper
             </span>
-            <span className="text-accent">→</span>
-            <span className="px-3 py-1 rounded-full bg-surface border border-border">
+            <span className="text-accent hidden sm:block">→</span>
+            <span className="text-accent sm:hidden">↓</span>
+            <span className="px-3 py-1.5 rounded-full bg-surface border border-border w-full sm:w-auto">
               4. Build knowledge
             </span>
           </div>

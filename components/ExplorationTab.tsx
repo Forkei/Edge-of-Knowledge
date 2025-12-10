@@ -77,20 +77,20 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-surface border border-border rounded-2xl p-6"
+        className="bg-surface border border-border rounded-2xl p-4 sm:p-6"
       >
         {/* Headline */}
-        <h2 className="text-2xl font-bold text-white mb-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-3 sm:mb-4">
           {content.headline}
         </h2>
 
         {/* Summary */}
-        <p className="text-gray-300 text-lg leading-relaxed mb-6">
+        <p className="text-gray-300 text-base sm:text-lg leading-relaxed mb-4 sm:mb-6">
           {content.summary}
         </p>
 
         {/* Stats row */}
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <CitationBadge count={content.citations.length} citations={content.citations} />
           <ResearchHeat heat={content.researchHeat} showLabel />
           <ConfidenceMeter confidence={content.confidence} showLabel />
@@ -110,11 +110,11 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
             {content.experiments.map((experiment) => (
               <div
                 key={experiment.id}
-                className="bg-green-500/5 border border-green-500/20 rounded-xl p-5"
+                className="bg-green-500/5 border border-green-500/20 rounded-xl p-4 sm:p-5"
               >
-                <div className="flex items-start justify-between gap-4 mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-3">
                   <h4 className="font-semibold text-white">{experiment.title}</h4>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
+                  <span className={`text-xs px-2 py-1 rounded-full w-fit ${
                     experiment.difficulty === 'beginner'
                       ? 'bg-green-500/20 text-green-400'
                       : experiment.difficulty === 'intermediate'
@@ -129,7 +129,7 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
                   <span className="text-green-400">Hypothesis:</span> {experiment.hypothesis}
                 </p>
 
-                <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-muted mb-2">Materials:</p>
                     <ul className="text-gray-400 space-y-1">
@@ -167,7 +167,7 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
           className="space-y-4"
         >
           <h3 className="text-lg font-semibold text-white">Go Deeper</h3>
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {content.branches.map((branch, index) => (
               <BranchCard
                 key={branch.id}
@@ -198,17 +198,17 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
                 rel="noopener noreferrer"
                 className="block p-3 bg-surface hover:bg-deep border border-border rounded-lg transition-colors group"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-white font-medium truncate group-hover:text-accent transition-colors">
+                <div className="flex items-start justify-between gap-2 sm:gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-white font-medium text-sm sm:text-base line-clamp-2 sm:truncate group-hover:text-accent transition-colors">
                       {citation.title}
                     </p>
-                    <p className="text-sm text-muted truncate">
+                    <p className="text-xs sm:text-sm text-muted line-clamp-1">
                       {citation.authors} • {citation.year}
                       {citation.citationCount !== undefined && ` • ${citation.citationCount} citations`}
                     </p>
                   </div>
-                  <ExternalLink className="w-4 h-4 text-muted flex-shrink-0 group-hover:text-accent transition-colors" />
+                  <ExternalLink className="w-4 h-4 text-muted flex-shrink-0 group-hover:text-accent transition-colors mt-0.5" />
                 </div>
               </a>
             ))}

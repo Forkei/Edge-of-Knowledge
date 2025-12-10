@@ -27,8 +27,8 @@ export default function TabBar() {
 
   return (
     <div className="sticky top-0 z-10 bg-void/90 backdrop-blur-sm border-b border-border/50">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center gap-1 py-2 overflow-x-auto scrollbar-hide">
+      <div className="max-w-7xl mx-auto px-2 sm:px-4">
+        <div className="flex items-center gap-1 py-2 overflow-x-auto scrollbar-hide -mx-2 px-2">
           {tabs.map((tab) => {
             const Icon = tabIcons[tab.type] || Sparkles
             const isActive = tab.id === activeTabId

@@ -156,23 +156,23 @@ export default function ImageUpload({
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`upload-zone relative rounded-2xl p-12 cursor-pointer transition-all duration-300 ${
+            className={`upload-zone relative rounded-2xl p-6 sm:p-12 cursor-pointer transition-all duration-300 ${
               isDragging ? 'dragging border-accent bg-accent/5' : 'border-border hover:border-muted'
             }`}
           >
-            <div className="flex flex-col items-center gap-4 text-center">
+            <div className="flex flex-col items-center gap-3 sm:gap-4 text-center">
               <motion.div
                 animate={{ y: isDragging ? -10 : 0 }}
-                className="w-16 h-16 rounded-full bg-surface flex items-center justify-center"
+                className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-surface flex items-center justify-center"
               >
-                <Upload className="w-8 h-8 text-muted" />
+                <Upload className="w-6 h-6 sm:w-8 sm:h-8 text-muted" />
               </motion.div>
               <div>
-                <p className="text-lg font-medium text-white">
-                  Drop an image here or click to upload
+                <p className="text-base sm:text-lg font-medium text-white">
+                  Drop an image here or tap to upload
                 </p>
-                <p className="text-sm text-muted mt-1">
-                  Point at anything curious — a bug, a cloud, a crystal, a shadow
+                <p className="text-xs sm:text-sm text-muted mt-1">
+                  Point at anything curious — a bug, a cloud, a crystal
                 </p>
               </div>
             </div>
