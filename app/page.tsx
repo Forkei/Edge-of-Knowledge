@@ -64,8 +64,18 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Analysis failed')
+        // Handle non-JSON error responses (like Vercel's 413 error)
+        const contentType = response.headers.get('content-type')
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Analysis failed')
+        } else {
+          const errorText = await response.text()
+          if (response.status === 413) {
+            throw new Error('Image too large. Please try a smaller image.')
+          }
+          throw new Error(errorText || `Request failed with status ${response.status}`)
+        }
       }
 
       const data = await response.json()

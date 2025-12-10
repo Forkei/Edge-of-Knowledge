@@ -21,7 +21,8 @@ export default function ImageUpload({
   const [context, setContext] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Compress and resize image to stay under Vercel's 4.5MB limit
+  // Compress and resize image to stay under Vercel's 4.5MB body limit
+  // Base64 adds ~33% overhead, so we target ~2MB max for the image
   const compressImage = useCallback(
     (file: File): Promise<{ base64: string; mimeType: string; preview: string }> => {
       return new Promise((resolve, reject) => {
@@ -30,9 +31,11 @@ export default function ImageUpload({
         const ctx = canvas.getContext('2d')
 
         img.onload = () => {
-          // Max dimensions - keeps quality while reducing size
-          const MAX_WIDTH = 1920
-          const MAX_HEIGHT = 1920
+          // Max dimensions - reduced for better compression
+          const MAX_WIDTH = 1280
+          const MAX_HEIGHT = 1280
+          // Target size in bytes (before base64 encoding)
+          const TARGET_SIZE = 1.5 * 1024 * 1024 // 1.5MB
 
           let { width, height } = img
 
@@ -48,16 +51,29 @@ export default function ImageUpload({
           ctx?.drawImage(img, 0, 0, width, height)
 
           // Compress as JPEG with quality adjustment
-          let quality = 0.85
+          let quality = 0.8
           let dataUrl = canvas.toDataURL('image/jpeg', quality)
 
-          // If still too large, reduce quality further
-          while (dataUrl.length > 3 * 1024 * 1024 && quality > 0.3) {
+          // If still too large, progressively reduce quality
+          while (dataUrl.length > TARGET_SIZE && quality > 0.2) {
             quality -= 0.1
             dataUrl = canvas.toDataURL('image/jpeg', quality)
           }
 
+          // If still too large after quality reduction, scale down dimensions
+          if (dataUrl.length > TARGET_SIZE) {
+            const scale = Math.sqrt(TARGET_SIZE / dataUrl.length)
+            width = Math.round(width * scale)
+            height = Math.round(height * scale)
+            canvas.width = width
+            canvas.height = height
+            ctx?.drawImage(img, 0, 0, width, height)
+            dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+          }
+
           const base64 = dataUrl.split(',')[1]
+          console.log(`Image compressed: ${(dataUrl.length / 1024).toFixed(0)}KB, ${width}x${height}, quality: ${quality.toFixed(1)}`)
+
           resolve({
             base64,
             mimeType: 'image/jpeg',
