@@ -10,90 +10,188 @@ interface DepthBackgroundProps {
   children: ReactNode
 }
 
-const depthStyles: Record<KnowledgeDepth, {
+const depthConfig: Record<KnowledgeDepth, {
   bg: string
-  gradient: string
-  edgeGlow: string
+  primary: string
+  secondary: string
+  glow: string
+  intensity: number
 }> = {
   known: {
-    bg: 'bg-[#0a1628]',
-    gradient: 'from-[#0a1628] via-[#0a1628] to-[#0f1a2e]',
-    edgeGlow: '',
+    bg: '#0a1628',
+    primary: '#3b82f6',
+    secondary: '#1e3a5f',
+    glow: 'rgba(59, 130, 246, 0.1)',
+    intensity: 0,
   },
   investigated: {
-    bg: 'bg-[#0f1a2e]',
-    gradient: 'from-[#0f1a2e] via-[#0f1a2e] to-[#1a1a2e]',
-    edgeGlow: '',
+    bg: '#0f1a2e',
+    primary: '#06b6d4',
+    secondary: '#164e63',
+    glow: 'rgba(6, 182, 212, 0.1)',
+    intensity: 0.2,
   },
   debated: {
-    bg: 'bg-[#1a1a2e]',
-    gradient: 'from-[#1a1a2e] via-[#151525] to-[#0d0d1a]',
-    edgeGlow: 'shadow-[inset_0_0_100px_rgba(245,158,11,0.05)]',
+    bg: '#1a1a2e',
+    primary: '#eab308',
+    secondary: '#422006',
+    glow: 'rgba(234, 179, 8, 0.1)',
+    intensity: 0.4,
   },
   unknown: {
-    bg: 'bg-[#0d0d1a]',
-    gradient: 'from-[#0d0d1a] via-[#0a0a15] to-[#050510]',
-    edgeGlow: 'shadow-[inset_0_0_150px_rgba(236,72,153,0.08)]',
+    bg: '#0d0d1a',
+    primary: '#a855f7',
+    secondary: '#3b0764',
+    glow: 'rgba(168, 85, 247, 0.15)',
+    intensity: 0.7,
   },
   frontier: {
-    bg: 'bg-[#050510]',
-    gradient: 'from-[#050510] via-[#050510] to-[#030308]',
-    edgeGlow: 'shadow-[inset_0_0_200px_rgba(244,114,182,0.12)]',
+    bg: '#050510',
+    primary: '#ec4899',
+    secondary: '#831843',
+    glow: 'rgba(236, 72, 153, 0.2)',
+    intensity: 1,
   },
 }
 
 export default function DepthBackground({ depth, children }: DepthBackgroundProps) {
-  const style = depthStyles[depth]
+  const config = depthConfig[depth]
+  const isFrontier = depth === 'frontier'
+  const isDeep = depth === 'unknown' || depth === 'frontier'
 
   return (
     <motion.div
-      className={`min-h-screen relative depth-transition ${style.bg} ${style.edgeGlow}`}
+      className="min-h-screen relative overflow-hidden"
       initial={false}
-      animate={{
-        backgroundColor: depth === 'known' ? '#0a1628' :
-                        depth === 'investigated' ? '#0f1a2e' :
-                        depth === 'debated' ? '#1a1a2e' :
-                        depth === 'unknown' ? '#0d0d1a' : '#050510'
-      }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
+      animate={{ backgroundColor: config.bg }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
     >
-      {/* Gradient overlay */}
-      <div
-        className={`absolute inset-0 bg-gradient-to-b ${style.gradient} pointer-events-none transition-opacity duration-500`}
+      {/* Base gradient overlay */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        initial={false}
+        animate={{
+          background: `radial-gradient(ellipse at 50% 0%, ${config.glow} 0%, transparent 50%),
+                       radial-gradient(ellipse at 50% 100%, ${config.glow} 0%, transparent 50%)`,
+        }}
+        transition={{ duration: 0.6 }}
       />
 
-      {/* Edge glow for deeper depths */}
-      {(depth === 'unknown' || depth === 'frontier') && (
+      {/* Animated nebula effect for deeper depths */}
+      {isDeep && (
+        <>
+          <motion.div
+            className="absolute inset-0 pointer-events-none opacity-30"
+            animate={{
+              background: [
+                `radial-gradient(ellipse at 30% 20%, ${config.glow} 0%, transparent 40%)`,
+                `radial-gradient(ellipse at 70% 80%, ${config.glow} 0%, transparent 40%)`,
+                `radial-gradient(ellipse at 30% 20%, ${config.glow} 0%, transparent 40%)`,
+              ],
+            }}
+            transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.div
+            className="absolute inset-0 pointer-events-none opacity-20"
+            animate={{
+              background: [
+                `radial-gradient(ellipse at 70% 30%, ${config.secondary}40 0%, transparent 35%)`,
+                `radial-gradient(ellipse at 30% 70%, ${config.secondary}40 0%, transparent 35%)`,
+                `radial-gradient(ellipse at 70% 30%, ${config.secondary}40 0%, transparent 35%)`,
+              ],
+            }}
+            transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        </>
+      )}
+
+      {/* Edge glow intensifies with depth */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        initial={false}
+        animate={{
+          boxShadow: `inset 0 0 ${100 + config.intensity * 150}px ${config.glow}`,
+        }}
+        transition={{ duration: 0.6 }}
+      />
+
+      {/* Bottom glow for frontier */}
+      {isFrontier && (
         <motion.div
+          className="absolute inset-0 pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-          className="absolute inset-0 pointer-events-none"
+          transition={{ duration: 1 }}
           style={{
-            background: depth === 'frontier'
-              ? 'radial-gradient(ellipse at bottom, rgba(244,114,182,0.1) 0%, transparent 50%)'
-              : 'radial-gradient(ellipse at bottom, rgba(236,72,153,0.05) 0%, transparent 50%)'
+            background: `radial-gradient(ellipse 80% 50% at 50% 100%, ${config.primary}30 0%, transparent 50%)`,
           }}
         />
       )}
 
-      {/* Vignette effect for frontier */}
-      {depth === 'frontier' && (
+      {/* Pulsing glow for frontier */}
+      {isFrontier && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1 }}
           className="absolute inset-0 pointer-events-none"
+          animate={{
+            opacity: [0.3, 0.6, 0.3],
+          }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
           style={{
-            background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%)'
+            background: `radial-gradient(ellipse at center bottom, ${config.primary}20 0%, transparent 40%)`,
           }}
         />
+      )}
+
+      {/* Vignette effect - stronger for deeper depths */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none"
+        initial={false}
+        animate={{
+          background: `radial-gradient(ellipse at center, transparent ${60 - config.intensity * 20}%, rgba(0,0,0,${0.2 + config.intensity * 0.3}) 100%)`,
+        }}
+        transition={{ duration: 0.6 }}
+      />
+
+      {/* Starfield effect for frontier */}
+      {isFrontier && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          {[...Array(20)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-1 h-1 rounded-full bg-white/30"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+              }}
+              animate={{
+                opacity: [0.2, 0.8, 0.2],
+                scale: [1, 1.2, 1],
+              }}
+              transition={{
+                duration: 2 + Math.random() * 2,
+                repeat: Infinity,
+                delay: Math.random() * 2,
+              }}
+            />
+          ))}
+        </div>
       )}
 
       {/* Content */}
       <div className="relative z-10">
         {children}
       </div>
+
+      {/* Depth indicator line at bottom */}
+      <motion.div
+        className="absolute bottom-0 left-0 right-0 h-1"
+        initial={false}
+        animate={{
+          background: `linear-gradient(to right, transparent, ${config.primary}, transparent)`,
+          opacity: config.intensity * 0.5,
+        }}
+        transition={{ duration: 0.6 }}
+      />
     </motion.div>
   )
 }

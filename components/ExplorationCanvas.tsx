@@ -3,6 +3,7 @@
 import { useExplorationStore } from '@/lib/store'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ExplorationMap } from './ExplorationMap'
+import { ExplorationStats } from './ExplorationStats'
 import EntryPoint from './EntryPoint'
 import ExplorationTab from './ExplorationTab'
 import LoadingState from './LoadingState'
@@ -93,6 +94,9 @@ export default function ExplorationCanvas() {
         <div className="flex flex-col min-h-[calc(100vh-57px)]">
           {/* Exploration Map */}
           <ExplorationMap />
+
+          {/* Stats Bar */}
+          <ExplorationStats />
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto">
