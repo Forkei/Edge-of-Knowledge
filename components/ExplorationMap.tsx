@@ -12,28 +12,32 @@ import {
   HelpCircle,
   Compass,
   Atom,
-  Lightbulb
+  Lightbulb,
+  Plus
 } from 'lucide-react'
-import { Tab, KnowledgeDepth, useExplorationStore } from '@/lib/store'
+import { Tab, KnowledgeDepth, useExplorationStore, BranchOption, Door } from '@/lib/store'
 
 interface GraphNode {
   id: string
   title: string
-  type: Tab['type']
+  type: Tab['type'] | 'potential'
   depth: KnowledgeDepth
   isExplored: boolean
   isCurrent: boolean
   isFrontier: boolean
+  isPotential: boolean // New: unexplored branch option
   parentId: string | null
   x: number
   y: number
   angle: number
   level: number
+  branchData?: BranchOption | Door // Data needed to explore this branch
 }
 
 interface GraphEdge {
   from: GraphNode
   to: GraphNode
+  isPotential: boolean
 }
 
 const DEPTH_COLORS: Record<KnowledgeDepth, string> = {
@@ -59,23 +63,40 @@ const TYPE_ICONS: Record<string, typeof Microscope> = {
   experiment: FlaskConical,
   paper: Atom,
   custom: Lightbulb,
+  potential: Plus,
 }
 
-// Calculate radial positions for nodes
-function calculateLayout(tabs: Tab[], activeTabId: string): { nodes: GraphNode[], edges: GraphEdge[] } {
+const TYPE_DEPTH_MAP: Record<string, KnowledgeDepth> = {
+  science: 'investigated',
+  unknown: 'unknown',
+  experiment: 'investigated',
+  paper: 'known',
+  custom: 'debated',
+}
+
+// Calculate radial positions for nodes including potential branches
+function calculateLayout(
+  tabs: Tab[],
+  activeTabId: string,
+  initialAnalysis: { doors: Door[] } | null
+): { nodes: GraphNode[], edges: GraphEdge[] } {
   if (tabs.length === 0) return { nodes: [], edges: [] }
 
   const centerX = 200
   const centerY = 150
-  const baseRadius = 100
+  const baseRadius = 85
+  const radiusStep = 65
   const nodes: GraphNode[] = []
   const edges: GraphEdge[] = []
+  const processedPotentialIds = new Set<string>()
 
-  // Build tree structure
   const startTab = tabs.find(t => t.id === 'start')
   if (!startTab) return { nodes: [], edges: [] }
 
-  // First pass: calculate levels and group by parent
+  // Build explored nodes map
+  const exploredNodeIds = new Set(tabs.map(t => t.id))
+
+  // First pass: calculate levels for explored tabs
   const nodesByParent: Map<string, Tab[]> = new Map()
   const levels: Map<string, number> = new Map()
 
@@ -103,21 +124,78 @@ function calculateLayout(tabs: Tab[], activeTabId: string): { nodes: GraphNode[]
     })
   }
 
+  // Collect all potential branches from explored nodes
+  interface PotentialBranch {
+    parentId: string
+    parentLevel: number
+    branch: BranchOption | Door
+    isDoor: boolean
+  }
+  const potentialBranches: PotentialBranch[] = []
+
+  // Add doors from initial analysis (branches from start)
+  if (initialAnalysis?.doors) {
+    initialAnalysis.doors.forEach(door => {
+      // Check if this door has already been explored
+      const isExplored = tabs.some(t => t.parentId === 'start' && t.type === door.id)
+      if (!isExplored) {
+        potentialBranches.push({
+          parentId: 'start',
+          parentLevel: 0,
+          branch: door,
+          isDoor: true,
+        })
+      }
+    })
+  }
+
+  // Add branches from explored tabs
+  tabs.forEach(tab => {
+    if (tab.content?.branches) {
+      tab.content.branches.forEach(branch => {
+        // Check if this branch has already been explored
+        const isExplored = tabs.some(t => t.parentId === tab.id && t.title === branch.title)
+        if (!isExplored) {
+          potentialBranches.push({
+            parentId: tab.id,
+            parentLevel: levels.get(tab.id) || 0,
+            branch,
+            isDoor: false,
+          })
+        }
+      })
+    }
+  })
+
+  // Group potential branches by parent
+  const potentialByParent: Map<string, PotentialBranch[]> = new Map()
+  potentialBranches.forEach(pb => {
+    if (!potentialByParent.has(pb.parentId)) {
+      potentialByParent.set(pb.parentId, [])
+    }
+    potentialByParent.get(pb.parentId)!.push(pb)
+  })
+
   // Second pass: calculate positions
-  const processNode = (tab: Tab, parentNode: GraphNode | null, angleStart: number, angleSpan: number) => {
+  const processNode = (
+    tab: Tab,
+    parentNode: GraphNode | null,
+    angleStart: number,
+    angleSpan: number
+  ) => {
     const level = levels.get(tab.id) || 0
-    const children = nodesByParent.get(tab.id) || []
+    const exploredChildren = nodesByParent.get(tab.id) || []
+    const potentialChildren = potentialByParent.get(tab.id) || []
+    const totalChildren = exploredChildren.length + potentialChildren.length
 
     let x: number, y: number, angle: number
 
     if (level === 0) {
-      // Center node
       x = centerX
       y = centerY
       angle = 0
     } else {
-      // Calculate position on radial arc
-      const radius = baseRadius + (level - 1) * 70
+      const radius = baseRadius + (level - 1) * radiusStep
       angle = angleStart + angleSpan / 2
       x = centerX + Math.cos(angle) * radius
       y = centerY + Math.sin(angle) * radius
@@ -131,6 +209,7 @@ function calculateLayout(tabs: Tab[], activeTabId: string): { nodes: GraphNode[]
       isExplored: !!tab.content || tab.id === 'start',
       isCurrent: tab.id === activeTabId,
       isFrontier: tab.content?.isFrontier || false,
+      isPotential: false,
       parentId: tab.parentId,
       x,
       y,
@@ -141,18 +220,64 @@ function calculateLayout(tabs: Tab[], activeTabId: string): { nodes: GraphNode[]
     nodes.push(node)
 
     if (parentNode) {
-      edges.push({ from: parentNode, to: node })
+      edges.push({ from: parentNode, to: node, isPotential: false })
     }
 
-    // Process children with distributed angles
-    if (children.length > 0) {
-      const childAngleSpan = level === 0 ? Math.PI * 2 : angleSpan
-      const childAngleStart = level === 0 ? -Math.PI / 2 : angleStart
-      const anglePerChild = childAngleSpan / children.length
+    // Calculate angles for all children (explored + potential)
+    if (totalChildren > 0) {
+      const childAngleSpan = level === 0 ? Math.PI * 2 : Math.min(angleSpan, Math.PI * 0.8)
+      const childAngleStart = level === 0 ? -Math.PI / 2 : angleStart + (angleSpan - childAngleSpan) / 2
+      const anglePerChild = childAngleSpan / totalChildren
 
-      children.forEach((child, i) => {
-        const childStart = childAngleStart + i * anglePerChild
+      let childIndex = 0
+
+      // Process explored children
+      exploredChildren.forEach((child) => {
+        const childStart = childAngleStart + childIndex * anglePerChild
         processNode(child, node, childStart, anglePerChild)
+        childIndex++
+      })
+
+      // Process potential children
+      potentialChildren.forEach((pb) => {
+        const childStart = childAngleStart + childIndex * anglePerChild
+        const childLevel = level + 1
+        const childRadius = baseRadius + (childLevel - 1) * radiusStep
+        const childAngle = childStart + anglePerChild / 2
+        const childX = centerX + Math.cos(childAngle) * childRadius
+        const childY = centerY + Math.sin(childAngle) * childRadius
+
+        const potentialId = `potential-${pb.parentId}-${pb.branch.id || pb.branch.title}`
+
+        if (!processedPotentialIds.has(potentialId)) {
+          processedPotentialIds.add(potentialId)
+
+          const branchType = pb.isDoor
+            ? (pb.branch as Door).id
+            : (pb.branch as BranchOption).type
+
+          const potentialNode: GraphNode = {
+            id: potentialId,
+            title: pb.branch.title,
+            type: branchType as Tab['type'],
+            depth: TYPE_DEPTH_MAP[branchType] || 'investigated',
+            isExplored: false,
+            isCurrent: false,
+            isFrontier: false,
+            isPotential: true,
+            parentId: pb.parentId,
+            x: childX,
+            y: childY,
+            angle: childAngle,
+            level: childLevel,
+            branchData: pb.branch,
+          }
+
+          nodes.push(potentialNode)
+          edges.push({ from: node, to: potentialNode, isPotential: true })
+        }
+
+        childIndex++
       })
     }
   }
@@ -168,13 +293,14 @@ function generateCurvedPath(from: GraphNode, to: GraphNode): string {
   const dy = to.y - from.y
   const dist = Math.sqrt(dx * dx + dy * dy)
 
-  // Control point for bezier curve
+  if (dist === 0) return `M ${from.x} ${from.y}`
+
   const midX = (from.x + to.x) / 2
   const midY = (from.y + to.y) / 2
 
-  // Perpendicular offset for curve
-  const perpX = -dy / dist * (dist * 0.2)
-  const perpY = dx / dist * (dist * 0.2)
+  // Curve outward from center
+  const perpX = -dy / dist * (dist * 0.15)
+  const perpY = dx / dist * (dist * 0.15)
 
   const ctrlX = midX + perpX
   const ctrlY = midY + perpY
@@ -183,37 +309,88 @@ function generateCurvedPath(from: GraphNode, to: GraphNode): string {
 }
 
 export function ExplorationMap() {
-  const { tabs, activeTabId, setActiveTab, initialAnalysis } = useExplorationStore()
+  const {
+    tabs,
+    activeTabId,
+    setActiveTab,
+    initialAnalysis,
+    addTab,
+    updateTabContent,
+    setTabError,
+  } = useExplorationStore()
   const [isExpanded, setIsExpanded] = useState(true)
+  const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null)
 
   const { nodes, edges } = useMemo(
-    () => calculateLayout(tabs, activeTabId),
-    [tabs, activeTabId]
+    () => calculateLayout(tabs, activeTabId, initialAnalysis),
+    [tabs, activeTabId, initialAnalysis]
   )
 
   const currentTab = tabs.find(t => t.id === activeTabId)
   const currentDepth = currentTab?.depth || 'known'
-
-  // Get the subject name for center label
   const centerLabel = initialAnalysis?.identification?.name || 'Edge of Knowledge'
 
-  // Handle node click
-  const handleNodeClick = useCallback((nodeId: string) => {
-    setActiveTab(nodeId)
+  // Handle clicking on explored node
+  const handleNodeClick = useCallback((node: GraphNode) => {
+    if (node.isPotential) {
+      // Trigger exploration for this potential branch
+      handleExploreBranch(node)
+    } else {
+      setActiveTab(node.id)
+    }
   }, [setActiveTab])
 
-  // Don't render if no nodes
+  // Handle exploring a potential branch
+  const handleExploreBranch = async (node: GraphNode) => {
+    if (!node.branchData || loadingNodeId) return
+
+    const tabId = `${node.type}-${Date.now()}`
+    setLoadingNodeId(node.id)
+
+    // Add tab (will be in loading state)
+    addTab({
+      id: tabId,
+      title: node.branchData.title,
+      type: node.type as Tab['type'],
+      parentId: node.parentId,
+    })
+
+    try {
+      const parentTab = tabs.find(t => t.id === node.parentId)
+      const context = parentTab?.content?.headline || initialAnalysis?.identification?.name || ''
+
+      const response = await fetch('/api/explore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchType: node.type,
+          branchTitle: node.branchData.title,
+          context,
+          originalAnalysis: initialAnalysis,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to explore branch')
+      }
+
+      const content = await response.json()
+      updateTabContent(tabId, content)
+    } catch (error) {
+      setTabError(tabId, error instanceof Error ? error.message : 'Failed to explore')
+    } finally {
+      setLoadingNodeId(null)
+    }
+  }
+
   if (nodes.length === 0) return null
 
   return (
     <div className="border-b border-border/50 bg-gradient-to-b from-surface/50 to-void/50 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 lg:px-6">
-        {/* Header with breadcrumb and controls */}
+        {/* Header */}
         <div className="flex items-center justify-between py-2">
-          {/* Breadcrumb */}
           <Breadcrumb tabs={tabs} activeTabId={activeTabId} onSelect={setActiveTab} />
-
-          {/* Expand/collapse + depth indicator */}
           <div className="flex items-center gap-3 ml-4 flex-shrink-0">
             <DepthBadge depth={currentDepth} />
             <button
@@ -221,16 +398,12 @@ export function ExplorationMap() {
               className="p-1.5 rounded-lg hover:bg-white/10 text-muted hover:text-white transition-colors"
               title={isExpanded ? 'Collapse map' : 'Expand map'}
             >
-              {isExpanded ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
+              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
-        {/* Expanded: Knowledge Graph */}
+        {/* Knowledge Graph */}
         <AnimatePresence>
           {isExpanded && (
             <motion.div
@@ -242,10 +415,10 @@ export function ExplorationMap() {
             >
               <div className="py-4">
                 <div className="relative bg-gradient-to-br from-void via-surface/30 to-void rounded-2xl border border-border/50 overflow-hidden">
-                  {/* Background glow effects */}
+                  {/* Background glow */}
                   <div className="absolute inset-0 pointer-events-none">
                     <div
-                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full blur-3xl opacity-30"
+                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full blur-3xl opacity-20"
                       style={{ backgroundColor: DEPTH_COLORS[currentDepth] }}
                     />
                   </div>
@@ -253,18 +426,27 @@ export function ExplorationMap() {
                   {/* SVG Graph */}
                   <svg
                     viewBox="0 0 400 300"
-                    className="w-full h-[300px]"
+                    className="w-full h-[320px]"
                     preserveAspectRatio="xMidYMid meet"
                   >
-                    {/* Gradient definitions */}
                     <defs>
+                      {/* Gradients for edges */}
                       {Object.entries(DEPTH_COLORS).map(([depth, color]) => (
                         <linearGradient key={depth} id={`gradient-${depth}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
-                          <stop offset="50%" stopColor={color} stopOpacity="0.6" />
-                          <stop offset="100%" stopColor={color} stopOpacity="0.2" />
+                          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+                          <stop offset="50%" stopColor={color} stopOpacity="0.7" />
+                          <stop offset="100%" stopColor={color} stopOpacity="0.3" />
                         </linearGradient>
                       ))}
+                      {/* Dashed gradient for potential edges */}
+                      {Object.entries(DEPTH_COLORS).map(([depth, color]) => (
+                        <linearGradient key={`potential-${depth}`} id={`gradient-potential-${depth}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor={color} stopOpacity="0.1" />
+                          <stop offset="50%" stopColor={color} stopOpacity="0.3" />
+                          <stop offset="100%" stopColor={color} stopOpacity="0.1" />
+                        </linearGradient>
+                      ))}
+                      {/* Glow filters */}
                       {Object.entries(DEPTH_COLORS).map(([depth, color]) => (
                         <filter key={`glow-${depth}`} id={`glow-${depth}`} x="-50%" y="-50%" width="200%" height="200%">
                           <feGaussianBlur stdDeviation="3" result="coloredBlur" />
@@ -284,9 +466,23 @@ export function ExplorationMap() {
                       </filter>
                     </defs>
 
-                    {/* Connection lines */}
+                    {/* Edges - potential first (behind), then explored */}
                     <g className="edges">
-                      {edges.map((edge, i) => (
+                      {edges.filter(e => e.isPotential).map((edge, i) => (
+                        <motion.path
+                          key={`${edge.from.id}-${edge.to.id}`}
+                          d={generateCurvedPath(edge.from, edge.to)}
+                          fill="none"
+                          stroke={`url(#gradient-potential-${edge.to.depth})`}
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeDasharray="4 4"
+                          initial={{ pathLength: 0, opacity: 0 }}
+                          animate={{ pathLength: 1, opacity: 0.5 }}
+                          transition={{ duration: 0.5, delay: 0.3 + i * 0.05 }}
+                        />
+                      ))}
+                      {edges.filter(e => !e.isPotential).map((edge, i) => (
                         <motion.path
                           key={`${edge.from.id}-${edge.to.id}`}
                           d={generateCurvedPath(edge.from, edge.to)}
@@ -302,34 +498,49 @@ export function ExplorationMap() {
                       ))}
                     </g>
 
-                    {/* Nodes */}
+                    {/* Nodes - potential first (behind), then explored */}
                     <g className="nodes">
-                      {nodes.map((node, i) => (
+                      {nodes.filter(n => n.isPotential).map((node, i) => (
+                        <GraphNodeComponent
+                          key={node.id}
+                          node={node}
+                          onClick={() => handleNodeClick(node)}
+                          delay={0.3 + i * 0.03}
+                          isLoading={loadingNodeId === node.id}
+                        />
+                      ))}
+                      {nodes.filter(n => !n.isPotential).map((node, i) => (
                         <GraphNodeComponent
                           key={node.id}
                           node={node}
                           centerLabel={node.level === 0 ? centerLabel : undefined}
-                          onClick={() => handleNodeClick(node.id)}
+                          onClick={() => handleNodeClick(node)}
                           delay={i * 0.05}
+                          isLoading={false}
                         />
                       ))}
                     </g>
                   </svg>
 
                   {/* Legend */}
-                  <div className="absolute bottom-3 left-3 flex items-center gap-3 text-xs text-muted">
+                  <div className="absolute bottom-3 left-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                     <span className="flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-cyan-500" />
-                      Known
+                      Explored
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-purple-500" />
-                      Unknown
+                      <span className="w-2 h-2 rounded-full border border-dashed border-gray-500 bg-transparent" />
+                      Available
                     </span>
                     <span className="flex items-center gap-1">
                       <span className="w-2 h-2 rounded-full bg-pink-500" />
                       Frontier
                     </span>
+                  </div>
+
+                  {/* Hint */}
+                  <div className="absolute bottom-3 right-3 text-xs text-muted/60">
+                    Click any node to explore
                   </div>
                 </div>
               </div>
@@ -347,77 +558,74 @@ function GraphNodeComponent({
   centerLabel,
   onClick,
   delay,
+  isLoading,
 }: {
   node: GraphNode
   centerLabel?: string
   onClick: () => void
   delay: number
+  isLoading?: boolean
 }) {
-  const Icon = TYPE_ICONS[node.type] || Lightbulb
+  const Icon = TYPE_ICONS[node.isPotential ? node.type : node.type] || Lightbulb
   const color = DEPTH_COLORS[node.depth]
   const glowColor = DEPTH_GLOW_COLORS[node.depth]
 
   const isCenter = node.level === 0
-  const nodeRadius = isCenter ? 28 : 18
-  const iconSize = isCenter ? 16 : 12
+  const nodeRadius = isCenter ? 26 : node.isPotential ? 14 : 16
+  const iconSize = isCenter ? 14 : node.isPotential ? 10 : 11
 
-  // Truncate title for display
-  const displayTitle = node.title.length > 15 ? node.title.slice(0, 12) + '...' : node.title
+  const displayTitle = node.title.length > 14 ? node.title.slice(0, 11) + '...' : node.title
 
   return (
     <motion.g
       initial={{ opacity: 0, scale: 0 }}
-      animate={{ opacity: 1, scale: 1 }}
+      animate={{ opacity: node.isPotential ? 0.7 : 1, scale: 1 }}
+      whileHover={{ scale: 1.1, opacity: 1 }}
       transition={{ duration: 0.3, delay }}
       style={{ cursor: 'pointer' }}
       onClick={onClick}
     >
-      {/* Outer glow for current/frontier nodes */}
-      {(node.isCurrent || node.isFrontier) && (
+      {/* Pulsing ring for current/frontier/loading */}
+      {(node.isCurrent || node.isFrontier || isLoading) && (
         <motion.circle
           cx={node.x}
           cy={node.y}
-          r={nodeRadius + 8}
+          r={nodeRadius + 6}
           fill="none"
-          stroke={color}
+          stroke={isLoading ? '#fbbf24' : color}
           strokeWidth="2"
-          opacity="0.3"
+          opacity="0.4"
           animate={{
-            r: [nodeRadius + 8, nodeRadius + 14, nodeRadius + 8],
-            opacity: [0.3, 0.1, 0.3],
+            r: [nodeRadius + 6, nodeRadius + 12, nodeRadius + 6],
+            opacity: [0.4, 0.1, 0.4],
           }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          transition={{ duration: isLoading ? 0.8 : 2, repeat: Infinity, ease: 'easeInOut' }}
         />
       )}
 
       {/* Glow background */}
-      <circle
-        cx={node.x}
-        cy={node.y}
-        r={nodeRadius + 4}
-        fill={glowColor}
-        filter="url(#glow-strong)"
-        opacity={node.isCurrent ? 0.8 : 0.4}
-      />
+      {!node.isPotential && (
+        <circle
+          cx={node.x}
+          cy={node.y}
+          r={nodeRadius + 3}
+          fill={glowColor}
+          filter="url(#glow-strong)"
+          opacity={node.isCurrent ? 0.7 : 0.3}
+        />
+      )}
 
-      {/* Main node circle */}
+      {/* Main circle */}
       <circle
         cx={node.x}
         cy={node.y}
         r={nodeRadius}
-        fill={`${color}20`}
+        fill={node.isPotential ? 'rgba(30, 30, 40, 0.8)' : `${color}20`}
         stroke={color}
-        strokeWidth={node.isCurrent ? 3 : 2}
-        filter={node.isCurrent ? `url(#glow-${node.depth})` : undefined}
-      />
-
-      {/* Inner gradient overlay */}
-      <circle
-        cx={node.x}
-        cy={node.y}
-        r={nodeRadius - 2}
-        fill="url(#nodeGradient)"
-        opacity="0.5"
+        strokeWidth={node.isCurrent ? 3 : node.isPotential ? 1.5 : 2}
+        strokeDasharray={node.isPotential ? '3 2' : undefined}
+        filter={node.isCurrent && !node.isPotential ? `url(#glow-${node.depth})` : undefined}
+        opacity={node.isPotential ? 0.6 : 1}
       />
 
       {/* Icon */}
@@ -427,39 +635,61 @@ function GraphNodeComponent({
         width={iconSize}
         height={iconSize}
       >
-        <div className="w-full h-full flex items-center justify-center" style={{ color }}>
-          <Icon style={{ width: iconSize, height: iconSize }} />
+        <div
+          className="w-full h-full flex items-center justify-center"
+          style={{ color: node.isPotential ? `${color}99` : color }}
+        >
+          {isLoading ? (
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            >
+              <Icon style={{ width: iconSize, height: iconSize }} />
+            </motion.div>
+          ) : (
+            <Icon style={{ width: iconSize, height: iconSize }} />
+          )}
         </div>
       </foreignObject>
 
       {/* Label */}
       <text
         x={node.x}
-        y={node.y + nodeRadius + 14}
+        y={node.y + nodeRadius + 12}
         textAnchor="middle"
-        fill={node.isCurrent ? '#ffffff' : '#9ca3af'}
-        fontSize={isCenter ? 11 : 9}
+        fill={node.isCurrent ? '#ffffff' : node.isPotential ? '#6b7280' : '#9ca3af'}
+        fontSize={isCenter ? 10 : 8}
         fontWeight={node.isCurrent ? 600 : 400}
-        className="select-none"
+        className="select-none pointer-events-none"
       >
-        {isCenter ? (centerLabel?.slice(0, 20) || 'Start') : displayTitle}
+        {isCenter ? (centerLabel?.slice(0, 18) || 'Start') : displayTitle}
       </text>
 
       {/* Frontier sparkle */}
-      {node.isFrontier && (
-        <motion.g
-          animate={{ rotate: 360 }}
-          transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-          style={{ transformOrigin: `${node.x}px ${node.y}px` }}
+      {node.isFrontier && !node.isPotential && (
+        <motion.text
+          x={node.x + nodeRadius - 2}
+          y={node.y - nodeRadius + 4}
+          fontSize="8"
+          animate={{ rotate: [0, 10, -10, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
         >
-          <text
-            x={node.x + nodeRadius - 2}
-            y={node.y - nodeRadius + 6}
-            fontSize="10"
-          >
-            ✨
-          </text>
-        </motion.g>
+          ✨
+        </motion.text>
+      )}
+
+      {/* "+" indicator for potential nodes */}
+      {node.isPotential && (
+        <text
+          x={node.x + nodeRadius - 1}
+          y={node.y - nodeRadius + 5}
+          fontSize="8"
+          fill={color}
+          fontWeight="bold"
+          opacity="0.7"
+        >
+          +
+        </text>
       )}
     </motion.g>
   )
@@ -475,7 +705,6 @@ function Breadcrumb({
   activeTabId: string
   onSelect: (id: string) => void
 }) {
-  // Build path from start to current
   const path = useMemo(() => {
     const result: Tab[] = []
     let currentId = activeTabId
@@ -495,9 +724,7 @@ function Breadcrumb({
     <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
       {path.map((tab, i) => (
         <div key={tab.id} className="flex items-center">
-          {i > 0 && (
-            <span className="text-muted/50 mx-1 text-sm">→</span>
-          )}
+          {i > 0 && <span className="text-muted/50 mx-1 text-sm">→</span>}
           <button
             onClick={() => onSelect(tab.id)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-sm whitespace-nowrap transition-all ${
@@ -515,9 +742,7 @@ function Breadcrumb({
               />
             )}
             <span className="max-w-[100px] truncate">{tab.title}</span>
-            {tab.content?.isFrontier && (
-              <Sparkles className="w-3 h-3 text-pink-400" />
-            )}
+            {tab.content?.isFrontier && <Sparkles className="w-3 h-3 text-pink-400" />}
           </button>
         </div>
       ))}
@@ -528,15 +753,10 @@ function Breadcrumb({
 // Depth badge component
 function DepthBadge({ depth }: { depth: KnowledgeDepth }) {
   const color = DEPTH_COLORS[depth]
-  const bgColor = `${color}20`
-
   return (
     <div
       className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-      style={{
-        backgroundColor: bgColor,
-        color: color,
-      }}
+      style={{ backgroundColor: `${color}20`, color }}
     >
       <motion.span
         className="w-2 h-2 rounded-full"
@@ -549,10 +769,9 @@ function DepthBadge({ depth }: { depth: KnowledgeDepth }) {
   )
 }
 
-// Mini map for corner display (optional)
+// Mini map export
 export function MiniMap() {
-  const { tabs, activeTabId, setActiveTab } = useExplorationStore()
-
+  const { tabs } = useExplorationStore()
   const exploredCount = tabs.filter(t => t.content || t.id === 'start').length
   const frontierCount = tabs.filter(t => t.content?.isFrontier).length
 
