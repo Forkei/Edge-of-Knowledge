@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Compass, ArrowDown, Github, Sparkles, LogOut } from 'lucide-react'
+import { Compass, Github, Sparkles, LogOut, Shuffle, BookOpen, Search, Zap } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
+import { LandingDemo } from '@/components/LandingDemo'
 import { useExplorationStore } from '@/lib/store'
+import { getRandomTopic } from '@/lib/surprise-topics'
 
 export default function Home() {
   const router = useRouter()
@@ -15,6 +17,7 @@ export default function Home() {
     preview: string
   } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isSurpriseLoading, setIsSurpriseLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const {
@@ -41,15 +44,11 @@ export default function Home() {
     setIsLoading(true)
     setError(null)
 
-    // Generate exploration ID
     const explorationId = `exp-${Date.now()}`
-
-    // Set up store for exploration
     startNewExploration(explorationId)
     setOriginalObservation(imageData.base64, imageData.mimeType, context || '')
     setInitialLoading(true)
 
-    // Navigate to explore page immediately
     router.push(`/explore/${explorationId}`)
 
     try {
@@ -64,28 +63,62 @@ export default function Home() {
       })
 
       if (!response.ok) {
-        // Handle non-JSON error responses (like Vercel's 413 error)
         const contentType = response.headers.get('content-type')
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json()
           throw new Error(errorData.error || 'Analysis failed')
         } else {
-          const errorText = await response.text()
           if (response.status === 413) {
             throw new Error('Image too large. Please try a smaller image.')
           }
-          throw new Error(errorText || `Request failed with status ${response.status}`)
+          throw new Error(`Request failed with status ${response.status}`)
         }
       }
 
       const data = await response.json()
       setInitialAnalysis(data)
-
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Something went wrong'
-      setInitialError(errorMessage)
+      setInitialError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleSurpriseMe = async () => {
+    setIsSurpriseLoading(true)
+    setError(null)
+
+    const topic = getRandomTopic()
+    const explorationId = `exp-${Date.now()}`
+
+    startNewExploration(explorationId)
+    setOriginalObservation('', '', topic.name) // No image, just topic
+    setInitialLoading(true)
+
+    router.push(`/explore/${explorationId}`)
+
+    try {
+      const response = await fetch('/api/surprise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: topic.name,
+          teaser: topic.teaser,
+          category: topic.category,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Analysis failed')
+      }
+
+      const data = await response.json()
+      setInitialAnalysis(data)
+    } catch (err) {
+      setInitialError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setIsSurpriseLoading(false)
     }
   }
 
@@ -125,130 +158,164 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="relative z-10 max-w-6xl mx-auto px-4 py-12">
+      <div className="relative z-10 max-w-6xl mx-auto px-4 py-8 md:py-12">
         {/* Hero Section */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8 md:mb-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <h1 className="text-4xl md:text-6xl font-bold mb-4">
+            <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4">
               <span className="gradient-text">Edge of Knowledge</span>
             </h1>
-            <p className="text-xl text-muted max-w-2xl mx-auto">
-              Where your curiosity meets the frontier of science
+            <p className="text-lg sm:text-xl text-muted max-w-2xl mx-auto mb-2">
+              Upload any image. Discover what science knows—and doesn't know—about it.
             </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="mt-8 flex flex-col items-center gap-2"
-          >
-            <p className="text-sm text-muted">
-              Point at anything curious. Navigate the map of human knowledge.
+            <p className="text-sm text-muted/70 max-w-xl mx-auto">
+              Follow your curiosity from established facts → active debates → unsolved mysteries
             </p>
-            <ArrowDown className="w-5 h-5 text-muted animate-bounce" />
           </motion.div>
         </div>
 
-        {/* Upload Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <ImageUpload
-            onImageSelect={handleImageSelect}
-            onAnalyze={handleAnalyze}
-            isLoading={isLoading}
-            selectedImage={imageData?.preview || null}
-          />
-        </motion.div>
+        {/* Demo + Upload Section */}
+        <div className="grid lg:grid-cols-2 gap-8 items-start mb-12">
+          {/* Left: Interactive Demo */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="order-2 lg:order-1"
+          >
+            <h2 className="text-sm font-medium text-muted mb-3 text-center lg:text-left">
+              See how it works
+            </h2>
+            <LandingDemo />
+          </motion.div>
+
+          {/* Right: Upload + Surprise */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="order-1 lg:order-2"
+          >
+            <h2 className="text-sm font-medium text-muted mb-3 text-center lg:text-left">
+              Start exploring
+            </h2>
+
+            <ImageUpload
+              onImageSelect={handleImageSelect}
+              onAnalyze={handleAnalyze}
+              isLoading={isLoading}
+              selectedImage={imageData?.preview || null}
+            />
+
+            {/* Surprise Me Button */}
+            <div className="mt-4 text-center">
+              <p className="text-xs text-muted mb-2">or try a random fascinating topic</p>
+              <button
+                onClick={handleSurpriseMe}
+                disabled={isSurpriseLoading || isLoading}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-purple-300 hover:border-purple-500/50 hover:text-purple-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSurpriseLoading ? (
+                  <>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                    </motion.div>
+                    <span>Finding something amazing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Shuffle className="w-4 h-4" />
+                    <span>Surprise Me</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </div>
 
         {/* Error Display */}
         {error && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-6 max-w-2xl mx-auto p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-center"
+            className="mb-8 max-w-2xl mx-auto p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-center"
           >
             {error}
           </motion.div>
         )}
 
-        {/* Feature highlights */}
+        {/* Value Proposition Cards */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="mt-16 grid md:grid-cols-3 gap-6 text-center"
+          transition={{ delay: 0.5 }}
+          className="grid md:grid-cols-3 gap-4 md:gap-6 mb-12"
         >
-          <div className="p-6 rounded-2xl bg-surface/50 border border-border">
-            <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mx-auto mb-4">
-              <div className="w-3 h-3 rounded-full bg-blue-400" />
+          <div className="p-5 md:p-6 rounded-2xl bg-surface/50 border border-border hover:border-blue-500/30 transition-colors group">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-blue-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <BookOpen className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
             </div>
-            <h3 className="font-semibold text-white mb-2">The Science</h3>
+            <h3 className="font-semibold text-white mb-2">Real Science</h3>
             <p className="text-sm text-muted">
-              Discover how things work at a fundamental level
+              Backed by 200M+ academic papers from Semantic Scholar. Not AI hallucinations—actual research.
             </p>
           </div>
-          <div className="p-6 rounded-2xl bg-surface/50 border border-border">
-            <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto mb-4">
-              <Sparkles className="w-5 h-5 text-purple-400" />
+
+          <div className="p-5 md:p-6 rounded-2xl bg-surface/50 border border-border hover:border-purple-500/30 transition-colors group">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <Search className="w-5 h-5 md:w-6 md:h-6 text-purple-400" />
             </div>
-            <h3 className="font-semibold text-white mb-2">The Unknown</h3>
+            <h3 className="font-semibold text-white mb-2">Endless Paths</h3>
             <p className="text-sm text-muted">
-              Find genuine mysteries at the frontier
+              Follow your curiosity down branching rabbit holes. Each click opens new questions to explore.
             </p>
           </div>
-          <div className="p-6 rounded-2xl bg-surface/50 border border-border">
-            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-              <div className="w-3 h-3 rounded-full bg-green-400" />
+
+          <div className="p-5 md:p-6 rounded-2xl bg-surface/50 border border-border hover:border-pink-500/30 transition-colors group">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-pink-500/20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <Zap className="w-5 h-5 md:w-6 md:h-6 text-pink-400" />
             </div>
-            <h3 className="font-semibold text-white mb-2">Investigate</h3>
+            <h3 className="font-semibold text-white mb-2">Find Frontiers</h3>
             <p className="text-sm text-muted">
-              Try experiments you can do yourself
+              Reach genuine mysteries that science hasn't solved yet. You'll know when you've hit the edge.
             </p>
           </div>
         </motion.div>
 
-        {/* How it works */}
+        {/* Example Discoveries */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mt-16 text-center"
+          transition={{ delay: 0.6 }}
+          className="text-center mb-8"
         >
-          <h2 className="text-lg font-semibold text-white mb-6">How It Works</h2>
-          {/* Mobile: vertical stack, Desktop: horizontal */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 text-sm text-muted">
-            <span className="px-3 py-1.5 rounded-full bg-surface border border-border w-full sm:w-auto">
-              1. Upload
-            </span>
-            <span className="text-accent hidden sm:block">→</span>
-            <span className="text-accent sm:hidden">↓</span>
-            <span className="px-3 py-1.5 rounded-full bg-surface border border-border w-full sm:w-auto">
-              2. Choose a path
-            </span>
-            <span className="text-accent hidden sm:block">→</span>
-            <span className="text-accent sm:hidden">↓</span>
-            <span className="px-3 py-1.5 rounded-full bg-surface border border-border w-full sm:w-auto">
-              3. Go deeper
-            </span>
-            <span className="text-accent hidden sm:block">→</span>
-            <span className="text-accent sm:hidden">↓</span>
-            <span className="px-3 py-1.5 rounded-full bg-surface border border-border w-full sm:w-auto">
-              4. Build knowledge
-            </span>
+          <h2 className="text-sm font-medium text-muted mb-4">Example discoveries</h2>
+          <div className="flex flex-wrap justify-center gap-2">
+            {[
+              'Butterfly wings → Photonic crystals → Unsolved: Genetic encoding of nanostructures',
+              'Crystals → Piezoelectricity → Frontier: Room-temperature quantum effects',
+              'Lightning → Plasma physics → Mystery: Ball lightning formation',
+            ].map((example, i) => (
+              <span
+                key={i}
+                className="px-3 py-1.5 rounded-full bg-surface/50 border border-border text-xs text-muted"
+              >
+                {example}
+              </span>
+            ))}
           </div>
         </motion.div>
       </div>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t border-border/50 mt-12">
+      <footer className="relative z-10 border-t border-border/50">
         <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-muted">
           <p>
             Built with curiosity for the{' '}

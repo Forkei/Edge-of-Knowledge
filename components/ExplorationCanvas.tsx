@@ -2,7 +2,7 @@
 
 import { useExplorationStore } from '@/lib/store'
 import { AnimatePresence, motion } from 'framer-motion'
-import TabBar from './TabBar'
+import { ExplorationMap } from './ExplorationMap'
 import EntryPoint from './EntryPoint'
 import ExplorationTab from './ExplorationTab'
 import LoadingState from './LoadingState'
@@ -91,8 +91,8 @@ export default function ExplorationCanvas() {
       {/* Main Canvas with Depth Background */}
       <DepthBackground depth={currentDepth}>
         <div className="flex flex-col min-h-[calc(100vh-57px)]">
-          {/* Tab Bar */}
-          <TabBar />
+          {/* Exploration Map */}
+          <ExplorationMap />
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto">
