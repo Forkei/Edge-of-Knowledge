@@ -9,7 +9,7 @@ import {
   detectFrontierFromPapers,
 } from '@/lib/prompts'
 
-const MODEL_NAME = 'gemini-2.5-flash-preview-05-20'
+const MODEL_NAME = 'gemini-3-pro-preview'
 
 // Mock response for development without API key
 const MOCK_ANALYSIS: InitialAnalysis = {

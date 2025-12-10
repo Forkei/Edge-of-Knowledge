@@ -10,7 +10,7 @@ import {
   detectFrontierFromPapers,
 } from '@/lib/prompts'
 
-const MODEL_NAME = 'gemini-2.5-flash-preview-05-20'
+const MODEL_NAME = 'gemini-3-pro-preview'
 
 export async function POST(request: NextRequest) {
   try {
