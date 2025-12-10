@@ -61,7 +61,7 @@ export function ExplorationMap() {
   return (
     <div className="border-b border-border/50 bg-surface/30 backdrop-blur-sm">
       {/* Collapsed: Breadcrumb view */}
-      <div className="max-w-6xl mx-auto px-4">
+      <div className="max-w-7xl mx-auto px-4 lg:px-6">
         <div className="flex items-center justify-between py-2">
           {/* Breadcrumb */}
           <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
@@ -137,7 +137,7 @@ export function ExplorationMap() {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <div className="pb-4 pt-2">
+              <div className="pb-4 pt-2 pl-1">
                 <TreeView
                   node={tree}
                   onSelect={setActiveTab}

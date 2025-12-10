@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Sparkles, Brain, CheckCircle } from 'lucide-react'
+import { Search, Sparkles, Brain, CheckCircle, Loader2 } from 'lucide-react'
 
 interface ProgressStep {
   id: string
@@ -12,17 +12,15 @@ interface ProgressStep {
 }
 
 const ANALYZE_STEPS: ProgressStep[] = [
-  { id: 'identify', label: 'Identifying observation...', icon: <Search className="w-4 h-4" />, duration: 2000 },
-  { id: 'search', label: 'Searching scientific papers...', icon: <Sparkles className="w-4 h-4" />, duration: 2500 },
-  { id: 'analyze', label: 'Analyzing with AI...', icon: <Brain className="w-4 h-4" />, duration: 4000 },
-  { id: 'complete', label: 'Ready to explore!', icon: <CheckCircle className="w-4 h-4" />, duration: 500 },
+  { id: 'identify', label: 'Identifying observation...', icon: <Search className="w-4 h-4" />, duration: 3000 },
+  { id: 'search', label: 'Searching scientific papers...', icon: <Sparkles className="w-4 h-4" />, duration: 4000 },
+  { id: 'analyze', label: 'Analyzing with AI...', icon: <Brain className="w-4 h-4" />, duration: 8000 },
 ]
 
 const EXPLORE_STEPS: ProgressStep[] = [
-  { id: 'search', label: 'Searching literature...', icon: <Search className="w-4 h-4" />, duration: 1500 },
-  { id: 'frontier', label: 'Detecting research frontier...', icon: <Sparkles className="w-4 h-4" />, duration: 1000 },
-  { id: 'generate', label: 'Generating exploration paths...', icon: <Brain className="w-4 h-4" />, duration: 3500 },
-  { id: 'complete', label: 'Exploration ready!', icon: <CheckCircle className="w-4 h-4" />, duration: 500 },
+  { id: 'search', label: 'Searching literature...', icon: <Search className="w-4 h-4" />, duration: 2500 },
+  { id: 'frontier', label: 'Detecting research frontier...', icon: <Sparkles className="w-4 h-4" />, duration: 2000 },
+  { id: 'generate', label: 'Generating exploration paths...', icon: <Brain className="w-4 h-4" />, duration: 6000 },
 ]
 
 interface ProgressBarProps {
@@ -35,18 +33,18 @@ interface ProgressBarProps {
 export function ProgressBar({ isLoading, mode = 'analyze', paperCount, onComplete }: ProgressBarProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [progress, setProgress] = useState(0)
+  const [isExtended, setIsExtended] = useState(false) // When taking longer than expected
   const steps = mode === 'analyze' ? ANALYZE_STEPS : EXPLORE_STEPS
+  const totalDuration = steps.reduce((sum, s) => sum + s.duration, 0)
 
   useEffect(() => {
     if (!isLoading) {
       setCurrentStep(0)
       setProgress(0)
+      setIsExtended(false)
       return
     }
 
-    let stepIndex = 0
-    let stepProgress = 0
-    const totalDuration = steps.reduce((sum, s) => sum + s.duration, 0)
     let elapsed = 0
 
     const interval = setInterval(() => {
@@ -54,31 +52,40 @@ export function ProgressBar({ isLoading, mode = 'analyze', paperCount, onComplet
 
       // Calculate which step we should be on
       let accumulated = 0
+      let stepIndex = steps.length - 1 // Default to last step
+
       for (let i = 0; i < steps.length; i++) {
         accumulated += steps[i].duration
         if (elapsed < accumulated) {
           stepIndex = i
-          const stepStart = accumulated - steps[i].duration
-          stepProgress = ((elapsed - stepStart) / steps[i].duration) * 100
           break
         }
       }
 
       setCurrentStep(stepIndex)
-      setProgress(Math.min((elapsed / totalDuration) * 100, 95)) // Cap at 95% until actually complete
 
-      // Loop back if still loading after all steps
-      if (elapsed >= totalDuration) {
-        elapsed = totalDuration - steps[steps.length - 1].duration - 500
+      // Progress calculation: fast up to 85%, then slow crawl to 98%
+      if (elapsed < totalDuration) {
+        // Normal progress up to 85%
+        setProgress((elapsed / totalDuration) * 85)
+      } else {
+        // Slow crawl from 85% to 98% over additional time
+        setIsExtended(true)
+        const extraTime = elapsed - totalDuration
+        const slowProgress = 85 + Math.min((extraTime / 20000) * 13, 13) // Crawl to 98% over 20 more seconds
+        setProgress(slowProgress)
       }
     }, 100)
 
     return () => clearInterval(interval)
-  }, [isLoading, steps])
+  }, [isLoading, steps, totalDuration])
 
   if (!isLoading) return null
 
   const currentStepData = steps[currentStep]
+
+  // Extended state message when taking longer
+  const extendedLabel = isExtended ? 'Almost there, finalizing...' : currentStepData.label
 
   return (
     <motion.div
@@ -93,7 +100,7 @@ export function ProgressBar({ isLoading, mode = 'analyze', paperCount, onComplet
           className="absolute inset-y-0 left-0 bg-gradient-to-r from-accent to-purple-500 rounded-full"
           initial={{ width: 0 }}
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.3 }}
+          transition={{ duration: 0.3, ease: 'easeOut' }}
         />
         {/* Shimmer effect */}
         <motion.div
@@ -106,18 +113,18 @@ export function ProgressBar({ isLoading, mode = 'analyze', paperCount, onComplet
       {/* Step indicator */}
       <div className="flex items-center justify-center gap-2 text-sm">
         <motion.div
-          key={currentStep}
+          key={isExtended ? 'extended' : currentStep}
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           className="flex items-center gap-2 text-accent"
         >
           <motion.div
-            animate={{ rotate: currentStep < steps.length - 1 ? 360 : 0 }}
-            transition={{ duration: 2, repeat: currentStep < steps.length - 1 ? Infinity : 0, ease: 'linear' }}
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
           >
-            {currentStepData.icon}
+            {isExtended ? <Loader2 className="w-4 h-4" /> : currentStepData.icon}
           </motion.div>
-          <span>{currentStepData.label}</span>
+          <span>{extendedLabel}</span>
         </motion.div>
       </div>
 
@@ -138,16 +145,21 @@ export function ProgressBar({ isLoading, mode = 'analyze', paperCount, onComplet
           <motion.div
             key={step.id}
             className={`w-2 h-2 rounded-full ${
-              i < currentStep
-                ? 'bg-accent'
-                : i === currentStep
-                ? 'bg-accent'
-                : 'bg-white/20'
+              i <= currentStep ? 'bg-accent' : 'bg-white/20'
             }`}
-            animate={i === currentStep ? { scale: [1, 1.3, 1] } : {}}
-            transition={{ duration: 0.5, repeat: i === currentStep ? Infinity : 0 }}
+            animate={i === currentStep && !isExtended ? { scale: [1, 1.3, 1] } : {}}
+            transition={{ duration: 0.5, repeat: i === currentStep && !isExtended ? Infinity : 0 }}
           />
         ))}
+        {/* Extra dot for extended state */}
+        {isExtended && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: [1, 1.3, 1] }}
+            transition={{ duration: 0.5, repeat: Infinity }}
+            className="w-2 h-2 rounded-full bg-purple-400"
+          />
+        )}
       </div>
     </motion.div>
   )

@@ -27,10 +27,14 @@ const doorIconColors = {
 export default function EntryPoint() {
   const {
     originalImage,
+    originalContext,
     initialAnalysis,
     addTab,
     setTabLoading,
   } = useExplorationStore()
+
+  // Check if this is a text-only exploration (Surprise Me)
+  const isTextOnly = !originalImage && originalContext
 
   if (!initialAnalysis) return null
 
@@ -79,14 +83,25 @@ export default function EntryPoint() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-gradient-to-br from-surface to-deep border border-border rounded-2xl p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6"
       >
-        {/* Image thumbnail */}
-        <div className="flex-shrink-0 flex justify-center sm:justify-start">
-          <img
-            src={`data:image/jpeg;base64,${originalImage}`}
-            alt="Observation"
-            className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-xl border border-border"
-          />
-        </div>
+        {/* Image thumbnail - only show if we have an image */}
+        {!isTextOnly && originalImage && (
+          <div className="flex-shrink-0 flex justify-center sm:justify-start">
+            <img
+              src={`data:image/jpeg;base64,${originalImage}`}
+              alt="Observation"
+              className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-xl border border-border"
+            />
+          </div>
+        )}
+
+        {/* Topic icon for text-only explorations */}
+        {isTextOnly && (
+          <div className="flex-shrink-0 flex justify-center sm:justify-start">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
+              <Sparkles className="w-10 h-10 sm:w-12 sm:h-12 text-purple-400" />
+            </div>
+          </div>
+        )}
 
         {/* Identification */}
         <div className="flex-1 min-w-0">

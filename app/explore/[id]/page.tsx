@@ -44,7 +44,7 @@ export default function ExplorePage() {
 
       {/* Header */}
       <header className="relative z-20 border-b border-border/50 bg-void/80 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 lg:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/')}

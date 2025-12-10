@@ -30,7 +30,7 @@ export default function ExplorationCanvas() {
   if (initialLoading) {
     return (
       <DepthBackground depth="known">
-        <div className="max-w-5xl mx-auto px-4 py-12">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
           <LoadingState
             message="Analyzing your observation..."
             subMessage="Identifying subject and mapping knowledge landscape"
@@ -44,7 +44,7 @@ export default function ExplorationCanvas() {
   if (validationError) {
     return (
       <DepthBackground depth="known">
-        <div className="max-w-5xl mx-auto px-4 py-12">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
           <ValidationErrorScreen
             issue={validationError.issue}
             suggestion={validationError.suggestion}
@@ -59,7 +59,7 @@ export default function ExplorationCanvas() {
   if (initialError) {
     return (
       <DepthBackground depth="known">
-        <div className="max-w-5xl mx-auto px-4 py-12">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -82,7 +82,7 @@ export default function ExplorationCanvas() {
   if (!initialAnalysis) {
     return (
       <DepthBackground depth="known">
-        <div className="max-w-5xl mx-auto px-4 py-12">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
           <LoadingState
             message="Preparing exploration..."
             subMessage="Setting up your knowledge journey"
@@ -117,7 +117,7 @@ export default function ExplorationCanvas() {
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto">
-            <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+            <div className="max-w-7xl mx-auto px-4 lg:px-8 py-4 sm:py-8">
               <AnimatePresence mode="wait">
                 {activeTabId === 'start' ? (
                   <motion.div
