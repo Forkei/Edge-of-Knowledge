@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Compass, ArrowDown, Github, Sparkles } from 'lucide-react'
+import { Compass, ArrowDown, Github, Sparkles, LogOut } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 import { useExplorationStore } from '@/lib/store'
 
@@ -101,14 +101,27 @@ export default function Home() {
             <Compass className="w-6 h-6 text-accent" />
             <span className="font-semibold text-white">Edge of Knowledge</span>
           </div>
-          <a
-            href="https://github.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted hover:text-white transition-colors"
-          >
-            <Github className="w-5 h-5" />
-          </a>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://github.com/Forkei/Edge-of-Knowledge"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted hover:text-white transition-colors"
+            >
+              <Github className="w-5 h-5" />
+            </a>
+            <button
+              onClick={async () => {
+                await fetch('/api/auth', { method: 'DELETE' })
+                router.push('/login')
+                router.refresh()
+              }}
+              className="text-muted hover:text-white transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 

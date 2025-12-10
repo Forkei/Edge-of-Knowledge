@@ -8,8 +8,12 @@ import {
   formatPaperResultsForPrompt,
   detectFrontierFromPapers,
 } from '@/lib/prompts'
+import { rateLimit, getClientId } from '@/lib/rate-limit'
 
 const MODEL_NAME = 'gemini-3-pro-preview'
+
+// Rate limit: 10 requests per minute per IP
+const RATE_LIMIT_CONFIG = { maxRequests: 10, windowMs: 60 * 1000 }
 
 // Mock response for development without API key
 const MOCK_ANALYSIS: InitialAnalysis = {
@@ -45,6 +49,23 @@ const MOCK_ANALYSIS: InitialAnalysis = {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const clientId = getClientId(request)
+    const { success, remaining, resetIn } = rateLimit(clientId, RATE_LIMIT_CONFIG)
+
+    if (!success) {
+      return NextResponse.json(
+        { error: `Rate limit exceeded. Try again in ${Math.ceil(resetIn / 1000)} seconds.` },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': String(Math.ceil(resetIn / 1000)),
+          },
+        }
+      )
+    }
+
     const body = await request.json()
     const { image, mimeType, context } = body
 
