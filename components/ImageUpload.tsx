@@ -21,27 +21,81 @@ export default function ImageUpload({
   const [context, setContext] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Compress and resize image to stay under Vercel's 4.5MB limit
+  const compressImage = useCallback(
+    (file: File): Promise<{ base64: string; mimeType: string; preview: string }> => {
+      return new Promise((resolve, reject) => {
+        const img = new window.Image()
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+
+        img.onload = () => {
+          // Max dimensions - keeps quality while reducing size
+          const MAX_WIDTH = 1920
+          const MAX_HEIGHT = 1920
+
+          let { width, height } = img
+
+          // Scale down if needed
+          if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+            const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height)
+            width = Math.round(width * ratio)
+            height = Math.round(height * ratio)
+          }
+
+          canvas.width = width
+          canvas.height = height
+          ctx?.drawImage(img, 0, 0, width, height)
+
+          // Compress as JPEG with quality adjustment
+          let quality = 0.85
+          let dataUrl = canvas.toDataURL('image/jpeg', quality)
+
+          // If still too large, reduce quality further
+          while (dataUrl.length > 3 * 1024 * 1024 && quality > 0.3) {
+            quality -= 0.1
+            dataUrl = canvas.toDataURL('image/jpeg', quality)
+          }
+
+          const base64 = dataUrl.split(',')[1]
+          resolve({
+            base64,
+            mimeType: 'image/jpeg',
+            preview: dataUrl,
+          })
+        }
+
+        img.onerror = () => reject(new Error('Failed to load image'))
+
+        // Load the image
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          img.src = e.target?.result as string
+        }
+        reader.onerror = () => reject(new Error('Failed to read file'))
+        reader.readAsDataURL(file)
+      })
+    },
+    []
+  )
+
   const handleFile = useCallback(
-    (file: File) => {
+    async (file: File) => {
       if (!file.type.startsWith('image/')) {
         alert('Please upload an image file')
         return
       }
 
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        // Extract base64 data (remove data URL prefix)
-        const base64 = result.split(',')[1]
-        onImageSelect({
-          base64,
-          mimeType: file.type,
-          preview: result,
-        })
+      try {
+        // Compress image to avoid 413 errors
+        const compressed = await compressImage(file)
+        onImageSelect(compressed)
+      } catch (error) {
+        console.error('Failed to process image:', error)
+        alert('Failed to process image. Please try again.')
       }
-      reader.readAsDataURL(file)
     },
-    [onImageSelect]
+    [onImageSelect, compressImage]
   )
 
   const handleDrop = useCallback(
