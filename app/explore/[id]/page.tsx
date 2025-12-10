@@ -15,30 +15,26 @@ export default function ExplorePage() {
   const {
     explorationId,
     originalImage,
+    originalContext,
     initialAnalysis,
     initialLoading,
     initialError,
+    validationError,
   } = useExplorationStore()
 
-  // If no exploration data, redirect to home
+  // Check if we have any exploration data (image OR context for text-only topics)
+  const hasExplorationData = originalImage || originalContext || initialLoading || initialAnalysis || validationError
+
+  // If no exploration data at all, redirect to home
   useEffect(() => {
-    if (!originalImage && !initialLoading) {
+    if (!hasExplorationData) {
       router.push('/')
     }
-  }, [originalImage, initialLoading, router])
+  }, [hasExplorationData, router])
 
-  if (!originalImage) {
-    return (
-      <div className="min-h-screen bg-void flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-muted"
-        >
-          Loading exploration...
-        </motion.div>
-      </div>
-    )
+  // Show nothing while redirecting
+  if (!hasExplorationData) {
+    return null
   }
 
   return (
