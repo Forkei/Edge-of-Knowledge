@@ -25,6 +25,7 @@ export default function Home() {
     setInitialAnalysis,
     setInitialLoading,
     setInitialError,
+    setValidationError,
     startNewExploration,
   } = useExplorationStore()
 
@@ -66,6 +67,17 @@ export default function Home() {
         const contentType = response.headers.get('content-type')
         if (contentType && contentType.includes('application/json')) {
           const errorData = await response.json()
+
+          // Handle validation errors specially
+          if (response.status === 422 && errorData.error === 'validation_failed') {
+            setValidationError({
+              issue: errorData.issue || 'ambiguous',
+              suggestion: errorData.suggestion,
+              partialIdentification: errorData.partialIdentification,
+            })
+            return
+          }
+
           throw new Error(errorData.error || 'Analysis failed')
         } else {
           if (response.status === 413) {

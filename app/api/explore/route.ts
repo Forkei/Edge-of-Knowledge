@@ -144,6 +144,8 @@ export async function POST(request: NextRequest) {
       researchHeat: paperAnalysis.researchHeat,
       branches: normalizeBranches(content.branches),
       experiments: normalizeExperiments(content.experiments),
+      scientificTerms: normalizeScientificTerms(content.scientificTerms),
+      relatedTopics: normalizeRelatedTopics(content.relatedTopics),
       isFrontier,
       frontierReason: isFrontier
         ? (content.frontierReason || paperAnalysis.frontierReason || undefined)
@@ -206,6 +208,17 @@ interface ParsedExploreResponse {
     alternativeOutcome?: string
     realScience?: string
     safetyNotes?: string
+  }>
+  scientificTerms?: Array<{
+    term?: string
+    definition?: string
+    searchQuery?: string
+    category?: string
+  }>
+  relatedTopics?: Array<{
+    title?: string
+    teaser?: string
+    searchQuery?: string
   }>
   isFrontier?: boolean
   frontierReason?: string
@@ -272,6 +285,31 @@ function normalizeDifficulty(diff?: string): 'beginner' | 'intermediate' | 'adva
     return diff
   }
   return 'intermediate'
+}
+
+function normalizeScientificTerms(terms?: ParsedExploreResponse['scientificTerms']): BranchContent['scientificTerms'] {
+  if (!terms || !Array.isArray(terms)) return undefined
+
+  return terms
+    .filter(t => t.term && t.definition)
+    .map(t => ({
+      term: t.term!,
+      definition: t.definition!,
+      searchQuery: t.searchQuery,
+      category: t.category,
+    }))
+}
+
+function normalizeRelatedTopics(topics?: ParsedExploreResponse['relatedTopics']): BranchContent['relatedTopics'] {
+  if (!topics || !Array.isArray(topics)) return undefined
+
+  return topics
+    .filter(t => t.title && t.searchQuery)
+    .map(t => ({
+      title: t.title!,
+      teaser: t.teaser || 'Explore this topic',
+      searchQuery: t.searchQuery!,
+    }))
 }
 
 // Mock data for development

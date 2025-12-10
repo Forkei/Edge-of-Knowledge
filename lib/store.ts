@@ -30,6 +30,19 @@ export interface BranchOption {
   type: 'science' | 'unknown' | 'experiment' | 'paper' | 'custom'
 }
 
+export interface ScientificTerm {
+  term: string
+  definition: string
+  searchQuery?: string
+  category?: string
+}
+
+export interface RelatedTopic {
+  title: string
+  teaser: string
+  searchQuery: string
+}
+
 export interface BranchContent {
   headline: string
   summary: string
@@ -38,6 +51,10 @@ export interface BranchContent {
   researchHeat: 'hot' | 'warm' | 'cold' | 'dormant'
   branches: BranchOption[]
   experiments?: Experiment[]
+  // Scientific terms for tooltips
+  scientificTerms?: ScientificTerm[]
+  // Related topics for discovery
+  relatedTopics?: RelatedTopic[]
   // Frontier detection
   isFrontier?: boolean
   frontierReason?: string
@@ -74,6 +91,12 @@ export interface InitialAnalysis {
   researchActivity: 'hot' | 'warm' | 'cold' | 'dormant'
 }
 
+export interface ValidationError {
+  issue: 'blur' | 'exposure' | 'multiple_subjects' | 'non_scientific' | 'ambiguous'
+  suggestion?: string
+  partialIdentification?: string
+}
+
 interface ExplorationState {
   // Original observation
   explorationId: string | null
@@ -85,6 +108,7 @@ interface ExplorationState {
   initialAnalysis: InitialAnalysis | null
   initialLoading: boolean
   initialError: string | null
+  validationError: ValidationError | null
 
   // Tab management
   tabs: Tab[]
@@ -103,6 +127,7 @@ interface ExplorationState {
   setInitialAnalysis: (analysis: InitialAnalysis) => void
   setInitialLoading: (loading: boolean) => void
   setInitialError: (error: string | null) => void
+  setValidationError: (error: ValidationError | null) => void
 
   addTab: (tab: Omit<Tab, 'loading' | 'content' | 'depth'> & {
     content?: BranchContent | null
@@ -132,6 +157,7 @@ const initialState = {
   initialAnalysis: null,
   initialLoading: false,
   initialError: null,
+  validationError: null as ValidationError | null,
   tabs: [] as Tab[],
   activeTabId: 'start',
   showFrontierMoment: false,
@@ -197,6 +223,8 @@ export const useExplorationStore = create<ExplorationState>((set, get) => ({
   setInitialLoading: (loading) => set({ initialLoading: loading }),
 
   setInitialError: (error) => set({ initialError: error, initialLoading: false }),
+
+  setValidationError: (error) => set({ validationError: error, initialLoading: false }),
 
   addTab: (tab) => {
     const { tabs } = get()

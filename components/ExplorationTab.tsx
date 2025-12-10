@@ -1,13 +1,14 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react'
 import { Tab, useExplorationStore } from '@/lib/store'
 import BranchCard from './BranchCard'
 import ConfidenceMeter from './ConfidenceMeter'
 import ResearchHeat from './ResearchHeat'
 import CitationBadge from './CitationBadge'
 import LoadingState from './LoadingState'
+import { ParsedText } from './TermTooltip'
 
 interface ExplorationTabProps {
   tab: Tab
@@ -84,9 +85,13 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
           {content.headline}
         </h2>
 
-        {/* Summary */}
+        {/* Summary with term tooltips */}
         <p className="text-gray-300 text-base sm:text-lg leading-relaxed mb-4 sm:mb-6">
-          {content.summary}
+          <ParsedText
+            text={content.summary}
+            terms={content.scientificTerms || []}
+            parentTabId={tab.id}
+          />
         </p>
 
         {/* Stats row */}
@@ -215,6 +220,96 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
           </div>
         </motion.div>
       )}
+
+      {/* Related Topics section */}
+      {content.relatedTopics && content.relatedTopics.length > 0 && (
+        <RelatedTopics topics={content.relatedTopics} parentTabId={tab.id} />
+      )}
     </div>
+  )
+}
+
+// Related Topics Component
+function RelatedTopics({
+  topics,
+  parentTabId
+}: {
+  topics: { title: string; teaser: string; searchQuery: string }[]
+  parentTabId: string
+}) {
+  const { addTab, initialAnalysis } = useExplorationStore()
+
+  const handleTopicClick = async (topic: { title: string; teaser: string; searchQuery: string }) => {
+    const tabId = `related-${topic.title.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`
+
+    // Add tab in loading state
+    addTab({
+      id: tabId,
+      title: topic.title,
+      type: 'custom',
+      parentId: parentTabId,
+    })
+
+    // Fetch content
+    try {
+      const response = await fetch('/api/explore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branchType: 'custom',
+          branchId: `related-${topic.title}`,
+          branchTitle: topic.title,
+          context: initialAnalysis?.identification.name || topic.title,
+          searchQuery: topic.searchQuery,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to explore topic')
+      }
+
+      const content = await response.json()
+      useExplorationStore.getState().updateTabContent(tabId, content)
+    } catch (error) {
+      useExplorationStore.getState().setTabError(
+        tabId,
+        error instanceof Error ? error.message : 'Failed to explore topic'
+      )
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.4 }}
+      className="space-y-4"
+    >
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-5 h-5 text-purple-400" />
+        <h3 className="text-lg font-semibold text-white">Related Topics</h3>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-3 px-3 scrollbar-hide">
+        {topics.map((topic, index) => (
+          <motion.button
+            key={topic.title}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 + index * 0.05 }}
+            onClick={() => handleTopicClick(topic)}
+            className="flex-shrink-0 group text-left"
+          >
+            <div className="px-4 py-3 bg-surface hover:bg-deep border border-border hover:border-purple-500/30 rounded-xl transition-all duration-200 max-w-[200px]">
+              <p className="font-medium text-white group-hover:text-purple-300 transition-colors text-sm truncate">
+                {topic.title}
+              </p>
+              <p className="text-xs text-muted line-clamp-2 mt-1">
+                {topic.teaser}
+              </p>
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
   )
 }

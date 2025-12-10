@@ -27,10 +27,26 @@ Your tone: Curious, warm, precise. Like a scientist friend who's genuinely excit
 // -----------------------------------------------------------------------------
 export const INITIAL_ANALYSIS_PROMPT = `Analyze this image and any context provided.
 
-Provide a BRIEF initial analysis — this is just the entry point, not the full exploration.
+FIRST, assess if this image can be meaningfully analyzed for scientific exploration:
+
+If the image is:
+- Too blurry to identify clearly → validation.isValid: false, issue: "blur"
+- Too dark or overexposed to see properly → validation.isValid: false, issue: "exposure"
+- Contains multiple unclear subjects → validation.isValid: false, issue: "multiple_subjects"
+- Not a scientific/natural subject (text, screenshots, UI, memes, etc.) → validation.isValid: false, issue: "non_scientific"
+- Too generic/ambiguous to explore meaningfully (blank wall, abstract pattern) → validation.isValid: false, issue: "ambiguous"
+
+If invalid, provide a helpful suggestion for what the user could try instead.
+Only proceed with full analysis if the image can be meaningfully explored.
 
 Return JSON in this exact format:
 {
+  "validation": {
+    "isValid": true|false,
+    "confidence": 0.0-1.0,
+    "issue": null | "blur" | "exposure" | "multiple_subjects" | "non_scientific" | "ambiguous",
+    "suggestion": "If invalid, a helpful suggestion for the user"
+  },
   "identification": {
     "name": "Scientific name or description",
     "commonName": "Common name if applicable",
@@ -66,6 +82,7 @@ Return JSON in this exact format:
 }
 
 IMPORTANT:
+- Always include the validation object, even when isValid is true
 - The "teaser" for each door should make them WANT to click
 - Be specific to THIS observation, not generic
 - Confidence should reflect YOUR certainty, not the science's certainty
@@ -121,6 +138,23 @@ Return JSON in this exact format:
     }
   ],
 
+  "scientificTerms": [
+    {
+      "term": "exact term as it appears in summary",
+      "definition": "Brief 1-2 sentence definition accessible to non-experts",
+      "searchQuery": "query to explore this concept further",
+      "category": "physics|biology|chemistry|geology|astronomy|other"
+    }
+  ],
+
+  "relatedTopics": [
+    {
+      "title": "Related Topic Name",
+      "teaser": "Why this is interesting to explore next",
+      "searchQuery": "search query for this topic"
+    }
+  ],
+
   "isFrontier": boolean,
   "frontierReason": "If isFrontier is true, explain why in one sentence"
 }
@@ -141,7 +175,21 @@ CRITICAL:
 - If papers found: cite them, mention years, show this is real research
 - If no papers: this might be a genuine frontier — say so honestly
 - Never invent citations
-- "Unknown" means HUMANITY doesn't know, not that YOU don't know`
+- "Unknown" means HUMANITY doesn't know, not that YOU don't know
+
+SCIENTIFIC TERMS:
+- Identify 3-5 key scientific terms or concepts mentioned in your summary
+- For each term, provide:
+  - The exact term as it appears in the text
+  - A brief 1-2 sentence definition accessible to non-experts
+  - A search query to explore this concept further
+- Focus on terms that are central to understanding this topic
+- Skip common words everyone knows
+
+RELATED TOPICS:
+- Suggest 2-4 related topics the user might want to explore
+- These should be genuinely connected but offer new angles
+- Each should have a compelling teaser that makes them want to click`
 }
 
 // -----------------------------------------------------------------------------

@@ -158,6 +158,12 @@ export async function POST(request: NextRequest) {
 
     // Parse the full analysis
     let parsedAnalysis: {
+      validation?: {
+        isValid?: boolean
+        confidence?: number
+        issue?: string | null
+        suggestion?: string
+      }
       identification?: {
         name?: string
         commonName?: string
@@ -185,6 +191,16 @@ export async function POST(request: NextRequest) {
       }
     } catch (e) {
       console.error('Failed to parse full analysis:', e)
+    }
+
+    // Check validation - return early if invalid
+    if (parsedAnalysis.validation?.isValid === false) {
+      return NextResponse.json({
+        error: 'validation_failed',
+        issue: parsedAnalysis.validation.issue || 'ambiguous',
+        suggestion: parsedAnalysis.validation.suggestion || 'Try uploading a clearer image of something in nature, a scientific subject, or an interesting object.',
+        partialIdentification: parsedAnalysis.identification?.name || subjectName,
+      }, { status: 422 })
     }
 
     // Build the response, merging Gemini output with paper data

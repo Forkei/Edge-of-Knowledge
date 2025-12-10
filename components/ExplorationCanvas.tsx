@@ -10,12 +10,14 @@ import LoadingState from './LoadingState'
 import DepthBackground from './DepthBackground'
 import AmbientParticles from './AmbientParticles'
 import FrontierMoment from './FrontierMoment'
+import ValidationErrorScreen from './ValidationErrorScreen'
 
 export default function ExplorationCanvas() {
   const {
     initialAnalysis,
     initialLoading,
     initialError,
+    validationError,
     tabs,
     activeTabId,
     currentDepth,
@@ -32,6 +34,21 @@ export default function ExplorationCanvas() {
           <LoadingState
             message="Analyzing your observation..."
             subMessage="Identifying subject and mapping knowledge landscape"
+          />
+        </div>
+      </DepthBackground>
+    )
+  }
+
+  // Show validation error state (image couldn't be processed)
+  if (validationError) {
+    return (
+      <DepthBackground depth="known">
+        <div className="max-w-5xl mx-auto px-4 py-12">
+          <ValidationErrorScreen
+            issue={validationError.issue}
+            suggestion={validationError.suggestion}
+            partialIdentification={validationError.partialIdentification}
           />
         </div>
       </DepthBackground>
