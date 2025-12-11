@@ -155,22 +155,25 @@ export async function runResearchAgent(
         parts: parts,
       })
 
-      // Add tool results as user message
-      const toolResultsText = formatToolResultsForGemini(results)
+      // Add tool results as function responses (proper format for Gemini)
+      const functionResponseParts: Part[] = results.map(r => ({
+        functionResponse: {
+          name: r.name,
+          response: (r.error ? { error: r.error } : r.result) as Record<string, unknown>,
+        }
+      }))
       messages.push({
         role: 'user',
-        parts: [{ text: toolResultsText }],
+        parts: functionResponseParts,
       })
 
       // Check if we have enough papers and should prompt for completion
       if (context.collectedPapers.length >= 10 && context.iterations >= 3) {
-        // Add a hint to consider finishing
-        const lastMessage = messages[messages.length - 1]
-        if (lastMessage.parts) {
-          lastMessage.parts.push({
-            text: '\n\n[You have gathered significant research. Consider calling finish_research if you have enough context, or continue searching if needed.]',
-          })
-        }
+        // Add a hint as a separate text message
+        messages.push({
+          role: 'user',
+          parts: [{ text: '[You have gathered significant research. Consider calling finish_research if you have enough context, or continue searching if needed.]' }],
+        })
       }
     } catch (error) {
       console.error(`Agent iteration ${context.iterations} failed:`, error)
