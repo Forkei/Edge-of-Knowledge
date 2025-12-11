@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
-import { searchPapers, formatAuthors } from '@/lib/papers'
+import { searchPapers, formatAuthors, PaperSearchResult } from '@/lib/papers'
 import { BranchContent, Citation, KnowledgeDepth } from '@/lib/store'
 import {
   SYSTEM_PROMPT,
@@ -10,11 +10,15 @@ import {
   detectFrontierFromPapers,
 } from '@/lib/prompts'
 import { rateLimit, getClientId } from '@/lib/rate-limit'
+import { runResearchAgent, formatResearchForPrompt, ResearchContext } from '@/lib/research-agent'
 
 const MODEL_NAME = 'gemini-3-pro-preview'
 
 // Rate limit: 20 requests per minute per IP (more lenient for exploration)
 const RATE_LIMIT_CONFIG = { maxRequests: 20, windowMs: 60 * 1000 }
+
+// Feature flag for agentic search
+const USE_AGENTIC_SEARCH = process.env.USE_AGENTIC_SEARCH === 'true'
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,26 +40,71 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { branchType, branchId, branchTitle, context, searchQuery } = body
+    const { branchType, branchId, branchTitle, context, searchQuery, originalAnalysis } = body
 
     if (!process.env.GEMINI_API_KEY) {
       // Return mock data for development
       return NextResponse.json(getMockBranchContent(branchType))
     }
 
-    // Step 1: Search for relevant papers FIRST
-    // Use searchQuery if provided (from previous branch), otherwise use context + branchTitle
-    const query = searchQuery || `${context} ${branchTitle || branchType}`.trim()
-    const papers = await searchPapers(query, 15)
+    let papers: PaperSearchResult[] = []
+    let paperContext: string
+    let researchContext: ResearchContext | null = null
 
-    // Format papers for prompt injection
-    const formattedPapers = papers.slice(0, 10).map(p => ({
-      title: p.title,
-      authors: formatAuthors(p.authors),
-      year: p.year,
-      citationCount: p.citationCount,
-    }))
-    const paperContext = formatPaperResultsForPrompt(formattedPapers)
+    // Use agentic search if enabled
+    if (USE_AGENTIC_SEARCH) {
+      // Run the research agent for comprehensive multi-query search
+      const topic = branchTitle || context || branchType
+      researchContext = await runResearchAgent(
+        topic,
+        branchType,
+        originalAnalysis,
+        { maxIterations: 10 }
+      )
+
+      // Use papers collected by the agent
+      papers = researchContext.collectedPapers.map(p => {
+        // Convert agent format back to PaperSearchResult format
+        const paper = p as unknown as {
+          id: string
+          title: string
+          authors: string
+          year: number
+          citations: number
+          abstract: string
+          url: string
+          venue: string
+        }
+        return {
+          paperId: paper.id,
+          title: paper.title,
+          authors: paper.authors ? paper.authors.split(', ').map(name => ({ name })) : [],
+          year: paper.year || 0,
+          citationCount: paper.citations || 0,
+          abstract: paper.abstract,
+          url: paper.url || `https://www.semanticscholar.org/paper/${paper.id}`,
+          venue: paper.venue,
+        } as PaperSearchResult
+      })
+
+      // Format research for prompt - includes papers AND web results
+      paperContext = formatResearchForPrompt(researchContext)
+
+      console.log(`Agentic search completed: ${papers.length} papers, ${researchContext.collectedWebResults.length} web results`)
+    } else {
+      // Fallback: Original single-query search
+      const query = searchQuery || `${context} ${branchTitle || branchType}`.trim()
+      papers = await searchPapers(query, 15)
+
+      // Format papers for prompt injection
+      const formattedPapers = papers.slice(0, 10).map(p => ({
+        title: p.title,
+        authors: formatAuthors(p.authors),
+        year: p.year,
+        citationCount: p.citationCount,
+      }))
+      paperContext = formatPaperResultsForPrompt(formattedPapers)
+    }
 
     // Format citations for response
     const citations: Citation[] = papers.slice(0, 5).map(p => ({
@@ -69,6 +118,12 @@ export async function POST(request: NextRequest) {
 
     // Pre-calculate frontier status from paper data
     const paperAnalysis = detectFrontierFromPapers(papers)
+
+    // If agent detected frontier, use that info
+    if (researchContext?.frontierDetected) {
+      paperAnalysis.isFrontier = true
+      paperAnalysis.frontierReason = researchContext.researchSummary || 'Research frontier detected by agent'
+    }
 
     // Step 2: Build the appropriate prompt
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
