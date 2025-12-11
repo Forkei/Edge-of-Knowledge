@@ -17,8 +17,8 @@ const MODEL_NAME = 'gemini-3-pro-preview'
 // Rate limit: 20 requests per minute per IP (more lenient for exploration)
 const RATE_LIMIT_CONFIG = { maxRequests: 20, windowMs: 60 * 1000 }
 
-// Feature flag for agentic search
-const USE_AGENTIC_SEARCH = process.env.USE_AGENTIC_SEARCH === 'true'
+// Agentic search is now the default
+const USE_AGENTIC_SEARCH = true
 
 export async function POST(request: NextRequest) {
   try {
