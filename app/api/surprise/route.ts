@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       model: MODEL_NAME,
       contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
       config: {
-        temperature: 1.0,
+        temperature: 0.7,
         maxOutputTokens: 2048,
       },
     })

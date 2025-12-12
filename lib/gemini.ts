@@ -118,8 +118,8 @@ export async function analyzeImage(
       ],
       config: {
         // Gemini 3 Pro specific settings
-        // Keep temperature at default 1.0 to avoid looping on complex reasoning
-        temperature: 1.0,
+        // Lower temperature for more grounded, factual responses
+        temperature: 0.7,
         maxOutputTokens: 8192,
         // Use high thinking level for complex scientific analysis
         thinkingConfig: {

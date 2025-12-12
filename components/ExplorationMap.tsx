@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ChevronDown,
@@ -16,6 +16,7 @@ import {
   Plus
 } from 'lucide-react'
 import { Tab, KnowledgeDepth, useExplorationStore, BranchOption, Door } from '@/lib/store'
+import { startStreamingExplore } from '@/lib/use-streaming-explore'
 
 interface GraphNode {
   id: string
@@ -321,6 +322,108 @@ export function ExplorationMap() {
   const [isExpanded, setIsExpanded] = useState(true)
   const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null)
 
+  // Zoom and pan state
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const svgRef = useRef<SVGSVGElement>(null)
+
+  // Reset zoom/pan when tabs change significantly
+  useEffect(() => {
+    if (tabs.length <= 1) {
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
+    }
+  }, [tabs.length])
+
+  // Prevent page scroll when wheeling over the map
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+
+    const handleWheelNative = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const delta = e.deltaY > 0 ? 0.9 : 1.1
+      setZoom(prev => Math.max(0.5, Math.min(3, prev * delta)))
+    }
+
+    svg.addEventListener('wheel', handleWheelNative, { passive: false })
+    return () => svg.removeEventListener('wheel', handleWheelNative)
+  }, [isExpanded]) // Re-attach when expanded state changes
+
+  // Pan handlers (drag) - works with any mouse button
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Start drag on left click (but not on nodes - they have their own click handler)
+    if (e.button === 0) {
+      e.preventDefault()
+      setIsDragging(true)
+      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+    }
+  }, [pan])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return
+    setPan({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    })
+  }, [isDragging, dragStart])
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+  }, [])
+
+  // Touch handlers for mobile
+  const touchStartRef = useRef<{ x: number; y: number; dist: number } | null>(null)
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartRef.current = {
+        x: e.touches[0].clientX - pan.x,
+        y: e.touches[0].clientY - pan.y,
+        dist: 0,
+      }
+    } else if (e.touches.length === 2) {
+      // Pinch zoom
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      touchStartRef.current = { x: pan.x, y: pan.y, dist }
+    }
+  }, [pan])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current) return
+
+    if (e.touches.length === 1) {
+      setPan({
+        x: e.touches[0].clientX - touchStartRef.current.x,
+        y: e.touches[0].clientY - touchStartRef.current.y,
+      })
+    } else if (e.touches.length === 2 && touchStartRef.current.dist > 0) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      const scale = dist / touchStartRef.current.dist
+      setZoom(prev => Math.max(0.5, Math.min(3, prev * scale)))
+      touchStartRef.current.dist = dist
+    }
+  }, [])
+
+  const handleTouchEnd = useCallback(() => {
+    touchStartRef.current = null
+  }, [])
+
+  // Reset zoom/pan
+  const resetView = useCallback(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }, [])
+
   const { nodes, edges } = useMemo(
     () => calculateLayout(tabs, activeTabId, initialAnalysis),
     [tabs, activeTabId, initialAnalysis]
@@ -355,32 +458,18 @@ export function ExplorationMap() {
       parentId: node.parentId,
     })
 
-    try {
-      const parentTab = tabs.find(t => t.id === node.parentId)
-      const context = parentTab?.content?.headline || initialAnalysis?.identification?.name || ''
+    const parentTab = tabs.find(t => t.id === node.parentId)
+    const context = parentTab?.content?.headline || initialAnalysis?.identification?.name || ''
 
-      const response = await fetch('/api/explore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branchType: node.type,
-          branchTitle: node.branchData.title,
-          context,
-          originalAnalysis: initialAnalysis,
-        }),
-      })
+    // Start streaming exploration
+    await startStreamingExplore(tabId, {
+      branchType: node.type,
+      branchTitle: node.branchData.title,
+      context,
+      originalAnalysis: initialAnalysis,
+    })
 
-      if (!response.ok) {
-        throw new Error('Failed to explore branch')
-      }
-
-      const content = await response.json()
-      updateTabContent(tabId, content)
-    } catch (error) {
-      setTabError(tabId, error instanceof Error ? error.message : 'Failed to explore')
-    } finally {
-      setLoadingNodeId(null)
-    }
+    setLoadingNodeId(null)
   }
 
   if (nodes.length === 0) return null
@@ -425,9 +514,17 @@ export function ExplorationMap() {
 
                   {/* SVG Graph */}
                   <svg
+                    ref={svgRef}
                     viewBox="0 0 400 300"
-                    className="w-full h-[320px]"
+                    className={`w-full h-[320px] ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
                     preserveAspectRatio="xMidYMid meet"
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
                   >
                     <defs>
                       {/* Gradients for edges */}
@@ -466,6 +563,8 @@ export function ExplorationMap() {
                       </filter>
                     </defs>
 
+                    {/* Transform group for zoom/pan */}
+                    <g transform={`translate(${pan.x / 2}, ${pan.y / 2}) scale(${zoom})`} style={{ transformOrigin: '200px 150px' }}>
                     {/* Edges - potential first (behind), then explored */}
                     <g className="edges">
                       {edges.filter(e => e.isPotential).map((edge, i) => (
@@ -520,7 +619,35 @@ export function ExplorationMap() {
                         />
                       ))}
                     </g>
+                    </g>
                   </svg>
+
+                  {/* Zoom controls */}
+                  <div className="absolute top-3 right-3 flex flex-col gap-1">
+                    <button
+                      onClick={() => setZoom(prev => Math.min(3, prev * 1.2))}
+                      className="w-7 h-7 flex items-center justify-center bg-surface/80 hover:bg-surface border border-border/50 rounded-lg text-sm text-muted hover:text-white transition-colors"
+                      title="Zoom in"
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={() => setZoom(prev => Math.max(0.5, prev * 0.8))}
+                      className="w-7 h-7 flex items-center justify-center bg-surface/80 hover:bg-surface border border-border/50 rounded-lg text-sm text-muted hover:text-white transition-colors"
+                      title="Zoom out"
+                    >
+                      −
+                    </button>
+                    {(zoom !== 1 || pan.x !== 0 || pan.y !== 0) && (
+                      <button
+                        onClick={resetView}
+                        className="w-7 h-7 flex items-center justify-center bg-surface/80 hover:bg-surface border border-border/50 rounded-lg text-xs text-muted hover:text-white transition-colors"
+                        title="Reset view"
+                      >
+                        ⟳
+                      </button>
+                    )}
+                  </div>
 
                   {/* Legend */}
                   <div className="absolute bottom-3 left-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
@@ -540,7 +667,7 @@ export function ExplorationMap() {
 
                   {/* Hint */}
                   <div className="absolute bottom-3 right-3 text-xs text-muted/60">
-                    Click any node to explore
+                    Click nodes • Scroll to zoom • Drag to pan
                   </div>
                 </div>
               </div>

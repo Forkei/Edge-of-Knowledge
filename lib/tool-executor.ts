@@ -190,11 +190,11 @@ export async function executeToolsWithLimit(
 function formatPapersForAgent(papers: PaperSearchResult[]): {
   count: number
   papers: {
-    id: string
+    paperId: string
     title: string
     authors: string
     year: number
-    citations: number
+    citationCount: number
     abstract: string
     url: string
     venue: string
@@ -203,11 +203,11 @@ function formatPapersForAgent(papers: PaperSearchResult[]): {
   return {
     count: papers.length,
     papers: papers.map(p => ({
-      id: p.paperId,
+      paperId: p.paperId,
       title: p.title,
       authors: p.authors.map(a => a.name).join(', ') || 'Unknown',
       year: p.year,
-      citations: p.citationCount,
+      citationCount: p.citationCount,
       abstract: p.abstract ? truncate(p.abstract, 300) : 'No abstract available',
       url: p.url,
       venue: p.venue || 'Unknown venue',

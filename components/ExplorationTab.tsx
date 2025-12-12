@@ -4,11 +4,12 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, ExternalLink, Sparkles } from 'lucide-react'
 import { Tab, useExplorationStore } from '@/lib/store'
 import BranchCard from './BranchCard'
-import ConfidenceMeter from './ConfidenceMeter'
 import ResearchHeat from './ResearchHeat'
 import CitationBadge from './CitationBadge'
 import LoadingState from './LoadingState'
+import ResearchProgress from './ResearchProgress'
 import { ParsedText } from './TermTooltip'
+import { startStreamingExplore } from '@/lib/use-streaming-explore'
 
 interface ExplorationTabProps {
   tab: Tab
@@ -20,8 +21,28 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
   // Find parent tab for back navigation
   const parentTab = tab.parentId ? tabs.find(t => t.id === tab.parentId) : null
 
-  // Loading state
+  // Loading state - show research progress if we have events
   if (tab.loading) {
+    const hasProgressEvents = tab.progressEvents && tab.progressEvents.length > 0
+    console.log(`[ExplorationTab] Tab ${tab.id} loading=${tab.loading}, progressEvents=`, tab.progressEvents?.length || 0)
+
+    if (hasProgressEvents) {
+      return (
+        <div className="space-y-4">
+          {parentTab && (
+            <button
+              onClick={() => setActiveTab(parentTab.id)}
+              className="flex items-center gap-2 text-muted hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to {parentTab.type === 'start' ? 'Start' : parentTab.title}</span>
+            </button>
+          )}
+          <ResearchProgress events={tab.progressEvents!} isComplete={false} />
+        </div>
+      )
+    }
+
     return (
       <LoadingState
         message="Exploring this branch..."
@@ -98,7 +119,6 @@ export default function ExplorationTab({ tab }: ExplorationTabProps) {
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <CitationBadge count={content.citations.length} citations={content.citations} />
           <ResearchHeat heat={content.researchHeat} showLabel />
-          <ConfidenceMeter confidence={content.confidence} showLabel />
         </div>
       </motion.div>
 
@@ -250,32 +270,14 @@ function RelatedTopics({
       parentId: parentTabId,
     })
 
-    // Fetch content
-    try {
-      const response = await fetch('/api/explore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branchType: 'custom',
-          branchId: `related-${topic.title}`,
-          branchTitle: topic.title,
-          context: initialAnalysis?.identification.name || topic.title,
-          searchQuery: topic.searchQuery,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to explore topic')
-      }
-
-      const content = await response.json()
-      useExplorationStore.getState().updateTabContent(tabId, content)
-    } catch (error) {
-      useExplorationStore.getState().setTabError(
-        tabId,
-        error instanceof Error ? error.message : 'Failed to explore topic'
-      )
-    }
+    // Start streaming exploration
+    await startStreamingExplore(tabId, {
+      branchType: 'custom',
+      branchId: `related-${topic.title}`,
+      branchTitle: topic.title,
+      context: initialAnalysis?.identification.name || topic.title,
+      searchQuery: topic.searchQuery,
+    })
   }
 
   return (

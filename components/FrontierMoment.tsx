@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import HorizonLine from './HorizonLine'
+import { Sparkles, X } from 'lucide-react'
 
 interface FrontierMomentProps {
   isVisible: boolean
@@ -10,150 +10,77 @@ interface FrontierMomentProps {
   onComplete: () => void
 }
 
-interface Star {
-  id: number
-  x: number
-  y: number
-  size: number
-  delay: number
-  duration: number
-}
-
-function generateStars(count: number): Star[] {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    x: 5 + Math.random() * 90,
-    y: 5 + Math.random() * 35,
-    size: 1.5 + Math.random() * 2.5,
-    delay: Math.random() * 2,
-    duration: 2 + Math.random() * 3,
-  }))
-}
-
 export default function FrontierMoment({ isVisible, reason, onComplete }: FrontierMomentProps) {
-  const [showButton, setShowButton] = useState(false)
-  const stars = useMemo(() => generateStars(25), [])
+  const [dismissed, setDismissed] = useState(false)
 
+  // Reset dismissed state when visibility changes
   useEffect(() => {
     if (isVisible) {
-      const timer = setTimeout(() => setShowButton(true), 2500)
-      return () => clearTimeout(timer)
-    } else {
-      setShowButton(false)
+      setDismissed(false)
     }
   }, [isVisible])
 
-  // Auto-advance after 6 seconds if no interaction
+  // Auto-dismiss after 8 seconds
   useEffect(() => {
-    if (isVisible && showButton) {
-      const timer = setTimeout(onComplete, 4000)
+    if (isVisible && !dismissed) {
+      const timer = setTimeout(() => {
+        setDismissed(true)
+        onComplete()
+      }, 8000)
       return () => clearTimeout(timer)
     }
-  }, [isVisible, showButton, onComplete])
+  }, [isVisible, dismissed, onComplete])
+
+  const handleDismiss = () => {
+    setDismissed(true)
+    onComplete()
+  }
 
   return (
     <AnimatePresence>
-      {isVisible && (
+      {isVisible && !dismissed && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.8 }}
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-          style={{ background: '#030308' }}
+          initial={{ opacity: 0, y: 20, x: 20 }}
+          animate={{ opacity: 1, y: 0, x: 0 }}
+          exit={{ opacity: 0, y: 20, x: 20 }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          className="fixed bottom-6 right-6 z-50 max-w-sm"
         >
-          {/* Stars */}
-          <div className="absolute inset-0 overflow-hidden">
-            {stars.map((star) => (
-              <motion.div
-                key={star.id}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 0.8, scale: 1 }}
-                transition={{ delay: 0.5 + star.delay * 0.3, duration: 0.5 }}
-                className="absolute rounded-full"
-                style={{
-                  left: `${star.x}%`,
-                  top: `${star.y}%`,
-                  width: star.size,
-                  height: star.size,
-                  background: 'radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(244,114,182,0.5) 50%, transparent 70%)',
-                  boxShadow: '0 0 4px rgba(244,114,182,0.5)',
-                  animation: `twinkle ${star.duration}s ease-in-out ${star.delay}s infinite`,
-                }}
-              />
-            ))}
-          </div>
+          <div className="relative bg-gradient-to-br from-pink-950/90 to-purple-950/90 backdrop-blur-lg border border-pink-500/30 rounded-2xl p-4 shadow-xl shadow-pink-500/10">
+            {/* Dismiss button */}
+            <button
+              onClick={handleDismiss}
+              className="absolute top-2 right-2 p-1 text-pink-300/60 hover:text-pink-200 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
 
-          {/* Content container */}
-          <div className="relative z-10 w-full max-w-2xl mx-auto px-6 text-center">
-            {/* Horizon line */}
+            {/* Content */}
+            <div className="flex items-start gap-3 pr-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-pink-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-pink-200 mb-1">
+                  Frontier Reached
+                </h3>
+                <p className="text-xs text-pink-300/80 leading-relaxed">
+                  {reason || "You've reached an area with limited published research."}
+                </p>
+              </div>
+            </div>
+
+            {/* Subtle glow effect */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-pink-500/5 to-transparent pointer-events-none" />
+
+            {/* Progress bar for auto-dismiss */}
             <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 1 }}
-              className="mb-16"
-            >
-              <HorizonLine />
-            </motion.div>
-
-            {/* Main text */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.8, duration: 0.8 }}
-              className="mb-4"
-            >
-              <span className="text-3xl md:text-4xl font-semibold tracking-wide frontier-text frontier-symbol">
-                ✦ FRONTIER DETECTED
-              </span>
-            </motion.div>
-
-            {/* Subtitle */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.2, duration: 0.8 }}
-              className="text-lg md:text-xl text-gray-300 mb-6"
-            >
-              You've reached the edge of knowledge.
-            </motion.p>
-
-            {/* Reason */}
-            {reason && (
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.6, duration: 0.8 }}
-                className="text-base text-gray-400 italic mb-12"
-              >
-                "{reason}"
-              </motion.p>
-            )}
-
-            {/* CTA Button */}
-            <AnimatePresence>
-              {showButton && (
-                <motion.button
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.5 }}
-                  onClick={onComplete}
-                  className="px-8 py-4 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-medium rounded-xl transition-all duration-300 glow-frontier hover:glow-frontier-intense"
-                >
-                  Step Into the Unknown
-                </motion.button>
-              )}
-            </AnimatePresence>
+              initial={{ scaleX: 1 }}
+              animate={{ scaleX: 0 }}
+              transition={{ duration: 8, ease: 'linear' }}
+              className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500/50 to-purple-500/50 origin-left rounded-b-2xl"
+            />
           </div>
-
-          {/* Bottom gradient */}
-          <div
-            className="absolute bottom-0 left-0 right-0 h-32 pointer-events-none"
-            style={{
-              background: 'linear-gradient(to top, rgba(244,114,182,0.05) 0%, transparent 100%)',
-            }}
-          />
         </motion.div>
       )}
     </AnimatePresence>

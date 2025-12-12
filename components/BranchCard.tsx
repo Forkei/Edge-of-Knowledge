@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { Microscope, Sparkles, FlaskConical, FileText, ArrowRight } from 'lucide-react'
 import { BranchOption, useExplorationStore } from '@/lib/store'
+import { startStreamingExplore } from '@/lib/use-streaming-explore'
 
 const branchIcons = {
   science: Microscope,
@@ -52,32 +53,14 @@ export default function BranchCard({ branch, parentTabId, delay = 0 }: BranchCar
       parentId: parentTabId,
     })
 
-    // Fetch content
-    try {
-      const response = await fetch('/api/explore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branchType: branch.type,
-          branchId: branch.id,
-          branchTitle: branch.title,
-          context: initialAnalysis?.identification.name,
-          originalAnalysis: initialAnalysis,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to explore branch')
-      }
-
-      const content = await response.json()
-      useExplorationStore.getState().updateTabContent(tabId, content)
-    } catch (error) {
-      useExplorationStore.getState().setTabError(
-        tabId,
-        error instanceof Error ? error.message : 'Failed to explore'
-      )
-    }
+    // Start streaming exploration
+    await startStreamingExplore(tabId, {
+      branchType: branch.type,
+      branchId: branch.id,
+      branchTitle: branch.title,
+      context: initialAnalysis?.identification.name,
+      originalAnalysis: initialAnalysis,
+    })
   }
 
   return (

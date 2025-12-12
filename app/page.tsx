@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Compass, Github, Sparkles, LogOut, Shuffle, BookOpen, Search, Zap } from 'lucide-react'
 import ImageUpload from '@/components/ImageUpload'
 import { LandingDemo } from '@/components/LandingDemo'
 import { useExplorationStore } from '@/lib/store'
 import { getRandomTopic } from '@/lib/surprise-topics'
+import { startStreamingAnalyze } from '@/lib/use-streaming-analyze'
 
 export default function Home() {
   const router = useRouter()
@@ -19,13 +20,61 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSurpriseLoading, setIsSurpriseLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [currentExampleIndex, setCurrentExampleIndex] = useState(0)
+
+  // Example discoveries data with images
+  const exampleDiscoveries = [
+    {
+      topic: 'Butterfly wings',
+      path: 'Butterfly wings → Photonic crystals → Unsolved: Genetic encoding',
+      teaser: 'Explore how butterfly wing scales create iridescent colors',
+      image: 'https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=120&h=80&fit=crop&q=80'
+    },
+    {
+      topic: 'Crystals',
+      path: 'Crystals → Piezoelectricity → Frontier: Quantum effects',
+      teaser: 'Discover the electrical properties of crystalline structures',
+      image: 'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=120&h=80&fit=crop&q=80'
+    },
+    {
+      topic: 'Lightning',
+      path: 'Lightning → Plasma physics → Mystery: Ball lightning',
+      teaser: 'Investigate the science behind electrical storms',
+      image: 'https://images.unsplash.com/photo-1461511669078-d46bf351cd6e?w=120&h=80&fit=crop&q=80'
+    },
+    {
+      topic: 'Spider silk',
+      path: 'Spider silk → Protein structure → Unknown: Self-assembly',
+      teaser: 'Learn about nature\'s strongest material',
+      image: 'https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=120&h=80&fit=crop&q=80'
+    },
+    {
+      topic: 'Northern lights',
+      path: 'Northern lights → Solar wind → Frontier: Prediction',
+      teaser: 'Explore the aurora borealis phenomenon',
+      image: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=120&h=80&fit=crop&q=80'
+    },
+    {
+      topic: 'Honeycomb',
+      path: 'Honeycomb → Structural efficiency → Debate: Optimization',
+      teaser: 'Discover why bees build hexagonal cells',
+      image: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=120&h=80&fit=crop&q=80'
+    },
+  ]
+
+  // Auto-rotate carousel (7 seconds - slower for readability)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentExampleIndex((prev) => (prev + 1) % exampleDiscoveries.length)
+    }, 7000)
+    return () => clearInterval(interval)
+  }, [exampleDiscoveries.length])
 
   const {
     setOriginalObservation,
     setInitialAnalysis,
     setInitialLoading,
     setInitialError,
-    setValidationError,
     startNewExploration,
   } = useExplorationStore()
 
@@ -48,52 +97,19 @@ export default function Home() {
     const explorationId = `exp-${Date.now()}`
     startNewExploration(explorationId)
     setOriginalObservation(imageData.base64, imageData.mimeType, context || '')
-    setInitialLoading(true)
 
-    router.push(`/explore/${explorationId}`)
-
-    try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: imageData.base64,
-          mimeType: imageData.mimeType,
-          context,
-        }),
-      })
-
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type')
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json()
-
-          // Handle validation errors specially
-          if (response.status === 422 && errorData.error === 'validation_failed') {
-            setValidationError({
-              issue: errorData.issue || 'ambiguous',
-              suggestion: errorData.suggestion,
-              partialIdentification: errorData.partialIdentification,
-            })
-            return
-          }
-
-          throw new Error(errorData.error || 'Analysis failed')
-        } else {
-          if (response.status === 413) {
-            throw new Error('Image too large. Please try a smaller image.')
-          }
-          throw new Error(`Request failed with status ${response.status}`)
-        }
-      }
-
-      const data = await response.json()
-      setInitialAnalysis(data)
-    } catch (err) {
-      setInitialError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
+    // Start streaming analyze in background (don't await - let it run while navigating)
+    // The streaming function updates the global store which the explore page reads
+    startStreamingAnalyze({
+      image: imageData.base64,
+      mimeType: imageData.mimeType,
+      context,
+    }).finally(() => {
       setIsLoading(false)
-    }
+    })
+
+    // Navigate to explore page - it will show progress from the store
+    router.push(`/explore/${explorationId}`)
   }
 
   const handleSurpriseMe = async () => {
@@ -117,6 +133,43 @@ export default function Home() {
           topic: topic.name,
           teaser: topic.teaser,
           category: topic.category,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Analysis failed')
+      }
+
+      const data = await response.json()
+      setInitialAnalysis(data)
+    } catch (err) {
+      setInitialError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setIsSurpriseLoading(false)
+    }
+  }
+
+  const handleExampleClick = async (example: typeof exampleDiscoveries[0]) => {
+    setIsSurpriseLoading(true)
+    setError(null)
+
+    const explorationId = `exp-${Date.now()}`
+
+    startNewExploration(explorationId)
+    setOriginalObservation('', '', example.topic)
+    setInitialLoading(true)
+
+    router.push(`/explore/${explorationId}`)
+
+    try {
+      const response = await fetch('/api/surprise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: example.topic,
+          teaser: example.teaser,
+          category: 'science',
         }),
       })
 
@@ -301,27 +354,66 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Example Discoveries */}
+        {/* Example Discoveries Carousel */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}
           className="text-center mb-8"
         >
-          <h2 className="text-sm font-medium text-muted mb-4">Example discoveries</h2>
-          <div className="flex flex-wrap justify-center gap-2">
-            {[
-              'Butterfly wings → Photonic crystals → Unsolved: Genetic encoding of nanostructures',
-              'Crystals → Piezoelectricity → Frontier: Room-temperature quantum effects',
-              'Lightning → Plasma physics → Mystery: Ball lightning formation',
-            ].map((example, i) => (
-              <span
-                key={i}
-                className="px-3 py-1.5 rounded-full bg-surface/50 border border-border text-xs text-muted"
-              >
-                {example}
-              </span>
-            ))}
+          <h2 className="text-sm font-medium text-muted mb-4">Example discoveries — click to explore</h2>
+
+          {/* Carousel Container */}
+          <div className="relative max-w-2xl mx-auto">
+            {/* Main Carousel Item */}
+            <div className="h-28 flex items-center justify-center">
+              <AnimatePresence mode="wait">
+                <motion.button
+                  key={currentExampleIndex}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.4 }}
+                  onClick={() => handleExampleClick(exampleDiscoveries[currentExampleIndex])}
+                  disabled={isSurpriseLoading || isLoading}
+                  className="group px-4 py-3 rounded-2xl bg-gradient-to-r from-surface/80 to-surface/50 border border-border hover:border-accent/50 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-center gap-4">
+                    {/* Image thumbnail */}
+                    <div className="w-20 h-14 rounded-xl overflow-hidden flex-shrink-0 ring-2 ring-border group-hover:ring-accent/50 transition-all">
+                      <img
+                        src={exampleDiscoveries[currentExampleIndex].image}
+                        alt={exampleDiscoveries[currentExampleIndex].topic}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      />
+                    </div>
+                    <div className="text-left">
+                      <div className="text-sm font-medium text-white group-hover:text-accent transition-colors">
+                        {exampleDiscoveries[currentExampleIndex].path}
+                      </div>
+                      <div className="text-xs text-muted mt-1">
+                        {exampleDiscoveries[currentExampleIndex].teaser}
+                      </div>
+                    </div>
+                  </div>
+                </motion.button>
+              </AnimatePresence>
+            </div>
+
+            {/* Carousel Dots */}
+            <div className="flex justify-center gap-2 mt-3">
+              {exampleDiscoveries.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentExampleIndex(i)}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    i === currentExampleIndex
+                      ? 'bg-accent w-6'
+                      : 'bg-border hover:bg-muted'
+                  }`}
+                />
+              ))}
+            </div>
           </div>
         </motion.div>
       </div>

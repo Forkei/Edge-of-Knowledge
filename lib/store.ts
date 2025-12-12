@@ -47,7 +47,6 @@ export interface BranchContent {
   headline: string
   summary: string
   citations: Citation[]
-  confidence: number
   researchHeat: 'hot' | 'warm' | 'cold' | 'dormant'
   branches: BranchOption[]
   experiments?: Experiment[]
@@ -61,6 +60,26 @@ export interface BranchContent {
   depth?: KnowledgeDepth
 }
 
+export interface ProgressEvent {
+  stage: 'starting' | 'thinking' | 'searching' | 'reading' | 'analyzing' | 'generating' | 'complete'
+  message: string
+  iteration?: number
+  toolName?: string
+  toolArgs?: Record<string, unknown>
+  papersFound?: number
+  webResultsFound?: number
+  detail?: string
+}
+
+// Progress events for initial analysis
+export interface AnalyzeProgressEvent {
+  stage: 'starting' | 'identifying' | 'searching' | 'found-papers' | 'analyzing' | 'complete' | 'error'
+  message: string
+  detail?: string
+  searchQueries?: string[]
+  papersFound?: number
+}
+
 export interface Tab {
   id: string
   title: string
@@ -70,6 +89,8 @@ export interface Tab {
   loading: boolean
   error?: string
   depth: KnowledgeDepth
+  // Research progress tracking
+  progressEvents?: ProgressEvent[]
 }
 
 export interface Door {
@@ -109,6 +130,8 @@ interface ExplorationState {
   initialLoading: boolean
   initialError: string | null
   validationError: ValidationError | null
+  // Progress tracking for initial analysis
+  analyzeProgressEvents: AnalyzeProgressEvent[]
 
   // Tab management
   tabs: Tab[]
@@ -128,6 +151,8 @@ interface ExplorationState {
   setInitialLoading: (loading: boolean) => void
   setInitialError: (error: string | null) => void
   setValidationError: (error: ValidationError | null) => void
+  addAnalyzeProgressEvent: (event: AnalyzeProgressEvent) => void
+  clearAnalyzeProgress: () => void
 
   addTab: (tab: Omit<Tab, 'loading' | 'content' | 'depth'> & {
     content?: BranchContent | null
@@ -137,6 +162,8 @@ interface ExplorationState {
   setTabLoading: (tabId: string, loading: boolean) => void
   setTabError: (tabId: string, error: string) => void
   setTabDepth: (tabId: string, depth: KnowledgeDepth) => void
+  addTabProgressEvent: (tabId: string, event: ProgressEvent) => void
+  clearTabProgress: (tabId: string) => void
   removeTab: (tabId: string) => void
   setActiveTab: (tabId: string) => void
 
@@ -158,6 +185,7 @@ const initialState = {
   initialLoading: false,
   initialError: null,
   validationError: null as ValidationError | null,
+  analyzeProgressEvents: [] as AnalyzeProgressEvent[],
   tabs: [] as Tab[],
   activeTabId: 'start',
   showFrontierMoment: false,
@@ -176,15 +204,17 @@ function calculateDepth(tab: Tab): KnowledgeDepth {
   // If frontier detected
   if (tab.content?.isFrontier) return 'frontier'
 
-  // Calculate based on confidence and research heat
+  // Calculate based on research heat and citations
   if (tab.content) {
-    const { confidence, researchHeat, citations } = tab.content
+    const { researchHeat, citations } = tab.content
 
-    if (citations.length <= 2 || researchHeat === 'dormant') return 'frontier'
-    if (confidence < 40 || researchHeat === 'cold') return 'unknown'
-    if (confidence < 60 || researchHeat === 'warm') return 'debated'
-    if (confidence < 80) return 'investigated'
-    return 'known'
+    // Determine depth based on research heat and citation count
+    if (citations.length === 0 && researchHeat === 'dormant') return 'frontier'
+    if (researchHeat === 'dormant') return 'unknown'
+    if (researchHeat === 'cold') return 'unknown'
+    if (researchHeat === 'warm') return 'debated'
+    if (researchHeat === 'hot' && citations.length >= 3) return 'known'
+    return 'investigated'
   }
 
   // Default based on tab type
@@ -225,6 +255,12 @@ export const useExplorationStore = create<ExplorationState>((set, get) => ({
   setInitialError: (error) => set({ initialError: error, initialLoading: false }),
 
   setValidationError: (error) => set({ validationError: error, initialLoading: false }),
+
+  addAnalyzeProgressEvent: (event) => set((state) => ({
+    analyzeProgressEvents: [...state.analyzeProgressEvents, event],
+  })),
+
+  clearAnalyzeProgress: () => set({ analyzeProgressEvents: [] }),
 
   addTab: (tab) => {
     const { tabs } = get()
@@ -299,6 +335,20 @@ export const useExplorationStore = create<ExplorationState>((set, get) => ({
       tab.id === tabId ? { ...tab, depth } : tab
     ),
     currentDepth: state.activeTabId === tabId ? depth : state.currentDepth,
+  })),
+
+  addTabProgressEvent: (tabId, event) => set((state) => ({
+    tabs: state.tabs.map(tab =>
+      tab.id === tabId
+        ? { ...tab, progressEvents: [...(tab.progressEvents || []), event] }
+        : tab
+    ),
+  })),
+
+  clearTabProgress: (tabId) => set((state) => ({
+    tabs: state.tabs.map(tab =>
+      tab.id === tabId ? { ...tab, progressEvents: [] } : tab
+    ),
   })),
 
   removeTab: (tabId) => {

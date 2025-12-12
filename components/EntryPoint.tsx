@@ -3,8 +3,8 @@
 import { motion } from 'framer-motion'
 import { Microscope, Sparkles, FlaskConical, FileText, Flame, Snowflake } from 'lucide-react'
 import { useExplorationStore, Door } from '@/lib/store'
-import ConfidenceMeter from './ConfidenceMeter'
 import ResearchHeat from './ResearchHeat'
+import { startStreamingExplore } from '@/lib/use-streaming-explore'
 
 const doorIcons = {
   science: Microscope,
@@ -49,30 +49,13 @@ export default function EntryPoint() {
       parentId: 'start',
     })
 
-    // Trigger exploration API call
-    try {
-      const response = await fetch('/api/explore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branchType: door.id,
-          context: initialAnalysis.identification.name,
-          originalAnalysis: initialAnalysis,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to explore branch')
-      }
-
-      const content = await response.json()
-      useExplorationStore.getState().updateTabContent(tabId, content)
-    } catch (error) {
-      useExplorationStore.getState().setTabError(
-        tabId,
-        error instanceof Error ? error.message : 'Failed to explore'
-      )
-    }
+    // Start streaming exploration
+    await startStreamingExplore(tabId, {
+      branchType: door.id,
+      branchTitle: door.title,
+      context: initialAnalysis.identification.name,
+      originalAnalysis: initialAnalysis,
+    })
   }
 
   return (
@@ -105,14 +88,9 @@ export default function EntryPoint() {
 
         {/* Identification */}
         <div className="flex-1 min-w-0">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-3">
-            <h1 className="text-xl sm:text-2xl font-bold text-white line-clamp-2 sm:truncate">
-              {initialAnalysis.identification.name}
-            </h1>
-            <div className="flex-shrink-0">
-              <ConfidenceMeter confidence={initialAnalysis.identification.confidence} />
-            </div>
-          </div>
+          <h1 className="text-xl sm:text-2xl font-bold text-white line-clamp-2 sm:truncate mb-3">
+            {initialAnalysis.identification.name}
+          </h1>
 
           <p className="text-gray-300 mb-4 text-sm sm:text-base">
             {initialAnalysis.identification.oneLiner}

@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       model: MODEL_NAME,
       contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
       config: {
-        temperature: 1.0,
+        temperature: 0.7,
         maxOutputTokens: 4096,
       },
     })
@@ -195,7 +195,6 @@ export async function POST(request: NextRequest) {
       headline: content.headline || `Exploring ${branchTitle || branchType}`,
       summary: content.summary || 'Investigating this branch of knowledge...',
       citations,
-      confidence: normalizeConfidence(content.confidence),
       researchHeat: paperAnalysis.researchHeat,
       branches: normalizeBranches(content.branches),
       experiments: normalizeExperiments(content.experiments),
@@ -295,12 +294,6 @@ function depthOrder(depth: KnowledgeDepth): number {
   return order[depth] ?? 2
 }
 
-function normalizeConfidence(value: number | undefined): number {
-  if (value === undefined) return 70
-  if (value <= 1) return Math.round(value * 100)
-  return Math.max(0, Math.min(100, Math.round(value)))
-}
-
 function normalizeBranches(branches?: ParsedExploreResponse['branches']): BranchContent['branches'] {
   if (!branches || !Array.isArray(branches)) return []
 
@@ -377,7 +370,6 @@ function getMockBranchContent(branchType: string): BranchContent {
         { paperId: 'abc123', title: 'Photonic Crystals in Nature', authors: 'Chen et al.', year: 2024, citationCount: 45 },
         { paperId: 'def456', title: 'Structural Color Mechanisms', authors: 'Martinez, J.', year: 2023, citationCount: 89 },
       ],
-      confidence: 85,
       researchHeat: 'hot',
       branches: [
         { id: 'nanoscale-structure', title: 'Nanoscale Structure', teaser: 'How the ridges create interference', type: 'science' },
@@ -393,7 +385,6 @@ function getMockBranchContent(branchType: string): BranchContent {
       citations: [
         { paperId: 'ghi789', title: 'Genetic Control of Structural Color', authors: 'Wang et al.', year: 2023, citationCount: 23 },
       ],
-      confidence: 35,
       researchHeat: 'cold',
       branches: [
         { id: 'genetic-encoding', title: 'Genetic Encoding', teaser: 'How do genes specify nanostructures?', type: 'unknown' },
@@ -408,7 +399,6 @@ function getMockBranchContent(branchType: string): BranchContent {
       headline: 'Investigate Structural Color at Home',
       summary: 'You can observe and experiment with structural coloration using everyday materials. These experiments reveal the physics of light interference.',
       citations: [],
-      confidence: 90,
       researchHeat: 'warm',
       branches: [
         { id: 'soap-bubbles', title: 'Soap Film Colors', teaser: 'Thin film interference you can see', type: 'experiment' },

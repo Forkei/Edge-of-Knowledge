@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, Search, BookOpen } from 'lucide-react'
 import { ScientificTerm } from '@/lib/text-parser'
 import { useExplorationStore } from '@/lib/store'
+import { startStreamingExplore } from '@/lib/use-streaming-explore'
 
 interface TermTooltipProps {
   term: ScientificTerm
@@ -77,32 +78,14 @@ export default function TermTooltip({ term, children, parentTabId }: TermTooltip
       parentId: parentTabId || 'start',
     })
 
-    // Fetch content for this term
-    try {
-      const response = await fetch('/api/explore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branchType: 'custom',
-          branchId: `term-${term.term}`,
-          branchTitle: term.term,
-          context: initialAnalysis?.identification.name || term.term,
-          searchQuery: term.searchQuery || term.term,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to explore term')
-      }
-
-      const content = await response.json()
-      useExplorationStore.getState().updateTabContent(tabId, content)
-    } catch (error) {
-      useExplorationStore.getState().setTabError(
-        tabId,
-        error instanceof Error ? error.message : 'Failed to explore term'
-      )
-    }
+    // Start streaming exploration
+    await startStreamingExplore(tabId, {
+      branchType: 'custom',
+      branchId: `term-${term.term}`,
+      branchTitle: term.term,
+      context: initialAnalysis?.identification.name || term.term,
+      searchQuery: term.searchQuery || term.term,
+    })
   }
 
   return (

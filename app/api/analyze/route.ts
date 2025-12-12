@@ -105,12 +105,14 @@ export async function POST(request: NextRequest) {
 
     const quickIdText = quickIdResponse.text || ''
     let subjectName = 'unknown observation'
+    let searchQueries: string[] = []
 
     try {
       const jsonMatch = quickIdText.match(/```(?:json)?\s*([\s\S]*?)```/) || quickIdText.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0])
         subjectName = parsed.name || subjectName
+        searchQueries = parsed.searchQueries || []
       }
     } catch {
       // If JSON parsing fails, try to extract just the name
@@ -120,8 +122,26 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Step 2: Search for papers based on identified subject
-    const papers = await searchPapers(subjectName, 20)
+    // Fallback: use subject name as search query if no queries provided
+    if (searchQueries.length === 0) {
+      searchQueries = [subjectName]
+    }
+
+    // Step 2: Search for papers using multiple queries in parallel
+    const searchPromises = searchQueries.slice(0, 3).map(query =>
+      searchPapers(query, 10).catch(() => [])
+    )
+    const searchResults = await Promise.all(searchPromises)
+
+    // Combine and deduplicate papers by paperId
+    const seenPaperIds = new Set<string>()
+    const papers = searchResults.flat().filter(paper => {
+      if (seenPaperIds.has(paper.paperId)) return false
+      seenPaperIds.add(paper.paperId)
+      return true
+    }).slice(0, 20)
+
+    console.log(`Search queries: ${searchQueries.join(', ')} → ${papers.length} unique papers`)
     const formattedPapers = papers.slice(0, 10).map(p => ({
       title: p.title,
       authors: formatAuthors(p.authors),
@@ -149,7 +169,7 @@ export async function POST(request: NextRequest) {
         ],
       }],
       config: {
-        temperature: 1.0,
+        temperature: 0.7,
         maxOutputTokens: 2048,
       },
     })
@@ -250,14 +270,26 @@ export async function POST(request: NextRequest) {
 function buildQuickIdentificationPrompt(context?: string): string {
   const contextSection = context ? `\nUser context: "${context}"` : ''
 
-  return `Quickly identify what is in this image.${contextSection}
+  return `Quickly identify what is in this image and suggest search queries for academic research.${contextSection}
 
 Respond with JSON only:
 {
-  "name": "Specific scientific name (e.g., 'Danaus plexippus wing' not just 'butterfly')"
+  "name": "The main subject (e.g., 'Monarch Butterfly Wing', 'Tesla Model 3', 'Quartz Crystal')",
+  "searchQueries": [
+    "Primary academic search term",
+    "Alternative or broader term",
+    "Scientific/technical angle"
+  ]
 }
 
-Be as specific as possible. This will be used to search academic papers.`
+IMPORTANT:
+- name: Be specific about what you see
+- searchQueries: Generate 2-3 search terms that would find ACADEMIC papers
+  - For natural subjects: use scientific names and phenomena (e.g., "Danaus plexippus", "structural coloration")
+  - For technology/products: focus on the underlying science (e.g., "electric vehicle battery technology", "lithium ion battery chemistry")
+  - For everyday objects: think about the materials, physics, or engineering (e.g., "automotive aerodynamics", "internal combustion engine efficiency")
+
+The searchQueries should be terms that would return results from academic databases like Semantic Scholar.`
 }
 
 // Full analysis with paper context injected

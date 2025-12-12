@@ -11,30 +11,38 @@ import DepthBackground from './DepthBackground'
 import AmbientParticles from './AmbientParticles'
 import FrontierMoment from './FrontierMoment'
 import ValidationErrorScreen from './ValidationErrorScreen'
+import AnalyzeProgress from './AnalyzeProgress'
 
 export default function ExplorationCanvas() {
-  const {
-    initialAnalysis,
-    initialLoading,
-    initialError,
-    validationError,
-    tabs,
-    activeTabId,
-    currentDepth,
-    showFrontierMoment,
-    frontierReason,
-    dismissFrontierMoment,
-  } = useExplorationStore()
+  // Use separate selectors for better re-render behavior
+  const initialAnalysis = useExplorationStore(state => state.initialAnalysis)
+  const initialLoading = useExplorationStore(state => state.initialLoading)
+  const initialError = useExplorationStore(state => state.initialError)
+  const validationError = useExplorationStore(state => state.validationError)
+  const analyzeProgressEvents = useExplorationStore(state => state.analyzeProgressEvents)
+  const tabs = useExplorationStore(state => state.tabs)
+  const activeTabId = useExplorationStore(state => state.activeTabId)
+  const currentDepth = useExplorationStore(state => state.currentDepth)
+  const showFrontierMoment = useExplorationStore(state => state.showFrontierMoment)
+  const frontierReason = useExplorationStore(state => state.frontierReason)
+  const dismissFrontierMoment = useExplorationStore(state => state.dismissFrontierMoment)
 
   // Show loading state while getting initial analysis
   if (initialLoading) {
+    const hasProgressEvents = analyzeProgressEvents && analyzeProgressEvents.length > 0
+    console.log(`[ExplorationCanvas] Loading, progressEvents=`, analyzeProgressEvents?.length || 0)
+
     return (
       <DepthBackground depth="known">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 py-12">
-          <LoadingState
-            message="Analyzing your observation..."
-            subMessage="Identifying subject and mapping knowledge landscape"
-          />
+          {hasProgressEvents ? (
+            <AnalyzeProgress events={analyzeProgressEvents} isComplete={false} />
+          ) : (
+            <LoadingState
+              message="Analyzing your observation..."
+              subMessage="Identifying subject and mapping knowledge landscape"
+            />
+          )}
         </div>
       </DepthBackground>
     )
